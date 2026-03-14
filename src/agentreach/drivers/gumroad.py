@@ -1,8 +1,7 @@
 """
 AgentReach — Gumroad Driver
-API-first (v2 REST API). Cookie fallback for operations not covered by API.
-Gumroad's API supports: create product, update product, get sales.
-File upload requires a separate API call.
+API for reading sales/products. Browser-based session for creating products.
+(Gumroad's v2 API does not support POST /products — create requires web UI)
 """
 
 import asyncio
@@ -14,6 +13,8 @@ from dataclasses import dataclass
 import httpx
 
 from ..vault.store import SessionVault
+from ..browser.session import platform_context
+from ..browser.uploader import upload_file, wait_for_upload_complete
 from .base import BasePlatformDriver, UploadResult
 
 
@@ -22,34 +23,32 @@ class GumroadProduct:
     name: str
     description: str
     price_cents: int          # e.g. 799 for $7.99
-    url: str = ""             # Custom URL slug
-    published: bool = True
+    custom_url: str = ""      # Custom URL slug
     file_path: Optional[str] = None
+    cover_image_path: Optional[str] = None
 
 
 class GumroadDriver(BasePlatformDriver):
     platform_name = "gumroad"
     API_BASE = "https://api.gumroad.com/v2"
 
+    DASHBOARD_URL = "https://app.gumroad.com/products"
+    NEW_PRODUCT_URL = "https://app.gumroad.com/products/new"
+
     def __init__(self, access_token: Optional[str] = None, vault: Optional[SessionVault] = None):
         super().__init__(vault)
         self._access_token = access_token
 
     def _get_token(self) -> Optional[str]:
-        """Get API access token — from constructor, vault, or env."""
         if self._access_token:
             return self._access_token
-
         import os
         env_token = os.environ.get("GUMROAD_ACCESS_TOKEN")
         if env_token:
             return env_token
-
-        # Try loading from vault
         session = self.vault.load("gumroad")
         if session:
             return session.get("access_token")
-
         return None
 
     def save_token(self, token: str) -> None:
@@ -61,6 +60,7 @@ class GumroadDriver(BasePlatformDriver):
         print(f"✅ Gumroad API token saved to vault.")
 
     async def verify_session(self) -> bool:
+        """Verify API token is valid (read access)."""
         token = self._get_token()
         if not token:
             return False
@@ -72,8 +72,17 @@ class GumroadDriver(BasePlatformDriver):
             )
             return resp.status_code == 200
 
+    async def verify_browser_session(self) -> bool:
+        """Verify the browser session (cookie-based) is still valid."""
+        try:
+            async with platform_context("gumroad", self.vault) as (ctx, page):
+                await page.goto(self.DASHBOARD_URL, wait_until="domcontentloaded", timeout=20000)
+                return "login" not in page.url and ("products" in page.url or "dashboard" in page.url)
+        except Exception:
+            return False
+
     async def list_products(self) -> list[dict]:
-        """List all Gumroad products."""
+        """List all Gumroad products via API."""
         token = self._get_token()
         async with httpx.AsyncClient() as client:
             resp = await client.get(
@@ -86,90 +95,85 @@ class GumroadDriver(BasePlatformDriver):
 
     async def create_product(self, product: GumroadProduct) -> UploadResult:
         """
-        Create a new Gumroad product and optionally upload a digital file.
-        Returns the product ID and URL on success.
+        Create a new Gumroad product via headless browser (API doesn't support POST).
+        Requires a harvested browser session: agentreach harvest gumroad
         """
-        token = self._get_token()
-        if not token:
-            return UploadResult(
-                success=False,
-                platform="gumroad",
-                error="No Gumroad access token. Run: agentreach gumroad set-token <token>",
-            )
+        async with platform_context("gumroad", self.vault) as (ctx, page):
+            try:
+                await page.goto(self.NEW_PRODUCT_URL, wait_until="networkidle", timeout=30000)
+                await page.wait_for_timeout(2000)
 
-        async with httpx.AsyncClient() as client:
-            # Step 1: Create the product
-            payload = {
-                "access_token": token,
-                "name": product.name,
-                "description": product.description,
-                "price": product.price_cents,
-                "published": str(product.published).lower(),
-            }
-            if product.url:
-                payload["url"] = product.url
+                # Product name
+                name_input = page.locator('input[name="name"], input[placeholder*="name"], #product-name').first
+                await name_input.fill(product.name)
+                await page.wait_for_timeout(500)
 
-            resp = await client.post(
-                f"{self.API_BASE}/products",
-                data=payload,
-                timeout=30,
-            )
+                # Price (in dollars)
+                price_dollars = product.price_cents / 100
+                price_input = page.locator('input[name="price"], input[placeholder*="price"], #price').first
+                await price_input.fill(str(price_dollars))
 
-            if resp.status_code != 201:
+                # Click through to the product editor / save the basic product
+                # Gumroad typically shows a "Create" or "Next" button
+                create_btn = page.locator('button:has-text("Create"), button:has-text("Next"), [type="submit"]').first
+                await create_btn.click()
+                await page.wait_for_load_state("networkidle", timeout=20000)
+                await page.wait_for_timeout(2000)
+
+                # Now on the product edit page — get the product ID from URL
+                product_url = page.url
+                product_id = None
+                if "/products/" in product_url:
+                    product_id = product_url.split("/products/")[1].split("/")[0]
+
+                # Description (rich text editor)
+                if product.description:
+                    try:
+                        desc_area = page.locator('[contenteditable="true"], textarea[name="description"]').first
+                        await desc_area.click()
+                        await desc_area.fill(product.description)
+                        await page.wait_for_timeout(500)
+                    except Exception:
+                        pass
+
+                # Upload digital file
+                if product.file_path:
+                    file_path = Path(product.file_path)
+                    if file_path.exists():
+                        uploaded = await upload_file(
+                            page,
+                            file_path,
+                            trigger_selector='[data-testid*="upload"], button:has-text("Upload"), .upload-button',
+                            input_selector='input[type="file"]',
+                        )
+                        if uploaded:
+                            await wait_for_upload_complete(page, timeout=120000)
+                            await page.wait_for_timeout(2000)
+
+                # Save / publish
+                save_btn = page.locator('button:has-text("Save"), button:has-text("Publish"), [data-testid*="save"]').first
+                await save_btn.click()
+                await page.wait_for_timeout(3000)
+
+                gumroad_url = f"https://tenlifejosh.gumroad.com/l/{product.custom_url or product_id}"
+
+                return UploadResult(
+                    success=True,
+                    platform="gumroad",
+                    product_id=product_id,
+                    url=gumroad_url,
+                    message=f"'{product.name}' published to Gumroad",
+                )
+
+            except Exception as e:
                 return UploadResult(
                     success=False,
                     platform="gumroad",
-                    error=f"Failed to create product: {resp.status_code} {resp.text}",
+                    error=f"Browser session required. Run: agentreach harvest gumroad\nError: {str(e)}",
                 )
-
-            product_data = resp.json().get("product", {})
-            product_id = product_data.get("id")
-            product_url = product_data.get("short_url") or product_data.get("url")
-
-            # Step 2: Upload digital file if provided
-            if product.file_path:
-                file_path = Path(product.file_path)
-                if file_path.exists():
-                    upload_result = await self._upload_file(client, token, product_id, file_path)
-                    if not upload_result:
-                        return UploadResult(
-                            success=False,
-                            platform="gumroad",
-                            product_id=product_id,
-                            url=product_url,
-                            error=f"Product created (ID: {product_id}) but file upload failed. Upload manually at gumroad.com/products/{product_id}/edit",
-                        )
-
-        return UploadResult(
-            success=True,
-            platform="gumroad",
-            product_id=product_id,
-            url=product_url,
-            message=f"'{product.name}' live on Gumroad at {product_url}",
-        )
-
-    async def _upload_file(
-        self,
-        client: httpx.AsyncClient,
-        token: str,
-        product_id: str,
-        file_path: Path,
-    ) -> bool:
-        """Upload a digital file to an existing Gumroad product."""
-        try:
-            with open(file_path, "rb") as f:
-                resp = await client.post(
-                    f"{self.API_BASE}/products/{product_id}/product_files",
-                    data={"access_token": token},
-                    files={"file": (file_path.name, f, "application/octet-stream")},
-                    timeout=120,
-                )
-            return resp.status_code in (200, 201)
-        except Exception:
-            return False
 
     async def get_sales(self, after: Optional[str] = None) -> dict:
-        """Get sales data. after = ISO date string to filter."""
+        """Get sales data via API."""
         token = self._get_token()
         params = {"access_token": token}
         if after:
