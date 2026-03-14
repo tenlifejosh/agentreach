@@ -92,7 +92,10 @@ async def harvest_session(
         cookies = await context.cookies()
         storage_state = await context.storage_state()
 
+        # Merge with existing vault data (preserve things like API tokens)
+        existing = vault.load(platform) or {}
         session_data = {
+            **existing,
             "platform": platform,
             "harvested_at": datetime.now(timezone.utc).isoformat(),
             "cookies": cookies,

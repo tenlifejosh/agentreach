@@ -95,6 +95,13 @@ async def platform_context(
 
         page: Page = await context.new_page()
 
+        # Apply stealth patches to avoid bot detection
+        try:
+            from playwright_stealth import stealth_async
+            await stealth_async(page)
+        except ImportError:
+            pass  # stealth optional
+
         try:
             yield context, page
         finally:

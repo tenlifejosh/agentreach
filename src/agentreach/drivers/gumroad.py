@@ -32,8 +32,8 @@ class GumroadDriver(BasePlatformDriver):
     platform_name = "gumroad"
     API_BASE = "https://api.gumroad.com/v2"
 
-    DASHBOARD_URL = "https://app.gumroad.com/products"
-    NEW_PRODUCT_URL = "https://app.gumroad.com/products/new"
+    DASHBOARD_URL = "https://gumroad.com/products"
+    NEW_PRODUCT_URL = "https://gumroad.com/products/new"
 
     def __init__(self, access_token: Optional[str] = None, vault: Optional[SessionVault] = None):
         super().__init__(vault)
@@ -77,7 +77,8 @@ class GumroadDriver(BasePlatformDriver):
         try:
             async with platform_context("gumroad", self.vault) as (ctx, page):
                 await page.goto(self.DASHBOARD_URL, wait_until="domcontentloaded", timeout=20000)
-                return "login" not in page.url and ("products" in page.url or "dashboard" in page.url)
+                await page.wait_for_timeout(2000)
+                return "login" not in page.url and "gumroad.com" in page.url
         except Exception:
             return False
 
@@ -103,35 +104,37 @@ class GumroadDriver(BasePlatformDriver):
                 await page.goto(self.NEW_PRODUCT_URL, wait_until="networkidle", timeout=30000)
                 await page.wait_for_timeout(2000)
 
-                # Product name
-                name_input = page.locator('input[name="name"], input[placeholder*="name"], #product-name').first
+                # Product name — use placeholder selector (ID is dynamic)
+                name_input = page.locator('input[placeholder="Name of product"]').first
+                await name_input.wait_for(timeout=15000)
                 await name_input.fill(product.name)
                 await page.wait_for_timeout(500)
 
-                # Price (in dollars)
+                # Price
                 price_dollars = product.price_cents / 100
-                price_input = page.locator('input[name="price"], input[placeholder*="price"], #price').first
+                price_input = page.locator('input[placeholder="Price your product"]').first
                 await price_input.fill(str(price_dollars))
+                await page.wait_for_timeout(300)
 
-                # Click through to the product editor / save the basic product
-                # Gumroad typically shows a "Create" or "Next" button
-                create_btn = page.locator('button:has-text("Create"), button:has-text("Next"), [type="submit"]').first
+                # Next / Create button
+                create_btn = page.locator('button:has-text("Next"), button:has-text("Create"), button[type="submit"]').first
                 await create_btn.click()
                 await page.wait_for_load_state("networkidle", timeout=20000)
                 await page.wait_for_timeout(2000)
 
-                # Now on the product edit page — get the product ID from URL
+                # Get product ID from URL
                 product_url = page.url
                 product_id = None
                 if "/products/" in product_url:
-                    product_id = product_url.split("/products/")[1].split("/")[0]
+                    product_id = product_url.split("/products/")[1].split("/")[0].split("?")[0]
 
-                # Description (rich text editor)
+                # Description
                 if product.description:
                     try:
-                        desc_area = page.locator('[contenteditable="true"], textarea[name="description"]').first
+                        desc_area = page.locator('[contenteditable="true"]').first
                         await desc_area.click()
-                        await desc_area.fill(product.description)
+                        await page.keyboard.press("Control+a")
+                        await desc_area.type(product.description)
                         await page.wait_for_timeout(500)
                     except Exception:
                         pass
@@ -143,15 +146,15 @@ class GumroadDriver(BasePlatformDriver):
                         uploaded = await upload_file(
                             page,
                             file_path,
-                            trigger_selector='[data-testid*="upload"], button:has-text("Upload"), .upload-button',
+                            trigger_selector='button:has-text("Upload"), [class*="upload"]',
                             input_selector='input[type="file"]',
                         )
                         if uploaded:
                             await wait_for_upload_complete(page, timeout=120000)
                             await page.wait_for_timeout(2000)
 
-                # Save / publish
-                save_btn = page.locator('button:has-text("Save"), button:has-text("Publish"), [data-testid*="save"]').first
+                # Save
+                save_btn = page.locator('button:has-text("Save changes"), button:has-text("Save"), button:has-text("Publish")').first
                 await save_btn.click()
                 await page.wait_for_timeout(3000)
 

@@ -153,7 +153,7 @@ def gumroad_publish(
         description=description,
         price_cents=int(price * 100),
         file_path=str(file) if file else None,
-        url=url,
+        custom_url=url,
     )
 
     console.print(f"[bold]📦 Publishing '{name}' to Gumroad...[/bold]")

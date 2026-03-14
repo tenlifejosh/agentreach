@@ -17,7 +17,7 @@ import httpx
 
 from ..vault.store import SessionVault
 from ..browser.session import platform_context
-from ..browser.uploader import upload_file
+from ..browser.uploader import upload_file, wait_for_upload_complete
 from .base import BasePlatformDriver, UploadResult
 
 
@@ -93,16 +93,27 @@ class EtsyDriver(BasePlatformDriver):
         }
 
     async def verify_session(self) -> bool:
+        """Verify session — tries API first, falls back to browser cookie session."""
         api_key, access_token, _ = self._get_credentials()
-        if not (api_key and access_token):
+        if api_key and access_token:
+            async with httpx.AsyncClient() as client:
+                resp = await client.get(
+                    f"{self.API_BASE}/users/me",
+                    headers=self._headers(api_key, access_token),
+                    timeout=10,
+                )
+                if resp.status_code == 200:
+                    return True
+
+        # Fall back to browser session check
+        try:
+            async with platform_context("etsy", self.vault) as (ctx, page):
+                await page.goto("https://www.etsy.com/your/shops/me/tools/listings",
+                                wait_until="domcontentloaded", timeout=20000)
+                await page.wait_for_timeout(2000)
+                return "signin" not in page.url and "login" not in page.url
+        except Exception:
             return False
-        async with httpx.AsyncClient() as client:
-            resp = await client.get(
-                f"{self.API_BASE}/users/me",
-                headers=self._headers(api_key, access_token),
-                timeout=10,
-            )
-            return resp.status_code == 200
 
     async def create_listing(self, listing: EtsyListing) -> UploadResult:
         """
