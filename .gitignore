@@ -1,0 +1,11 @@
+*.vault
+*.pyc
+__pycache__/
+.venv/
+dist/
+build/
+*.egg-info/
+.env
+.DS_Store
+vault/
+

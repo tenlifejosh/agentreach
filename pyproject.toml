@@ -1,0 +1,58 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentreach"
+version = "0.1.0"
+description = "Persistent authenticated web access for AI agents. Never ask a human to open a browser again."
+readme = "README.md"
+license = {text = "MIT"}
+authors = [
+    {name = "Joshua Noreen", email = "josh@tenlifecreatives.com"}
+]
+keywords = [
+    "ai-agents", "automation", "browser-automation", "playwright",
+    "kdp", "etsy", "gumroad", "pinterest", "session-management",
+    "openclaw", "agent-tools"
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Internet :: WWW/HTTP :: Browsers",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "playwright>=1.40.0",
+    "httpx>=0.25.0",
+    "cryptography>=41.0.0",
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "pytest-playwright>=0.4",
+]
+
+[project.scripts]
+agentreach = "agentreach.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/tenlifejosh/agentreach"
+Repository = "https://github.com/tenlifejosh/agentreach"
+Issues = "https://github.com/tenlifejosh/agentreach"
+Documentation = "https://github.com/tenlifejosh/agentreach#readme"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
