@@ -2,7 +2,16 @@
 
 **Never ask a human to open a browser again.**
 
+[![GitHub stars](https://img.shields.io/github/stars/tenlifejosh/agentreach?style=social)](https://github.com/tenlifejosh/agentreach/stargazers)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+
 AgentReach gives AI agents persistent, authenticated access to any web platform — KDP, Etsy, Gumroad, Pinterest, and beyond. One 10-minute bootstrap session. Autonomous forever after.
+
+---
+
+## ⭐ Star this repo if AgentReach solves a problem you've hit.
+## 💖 [Sponsor the project](https://github.com/sponsors/tenlifejosh) to support ongoing development.
 
 ---
 
@@ -18,6 +27,22 @@ Reality: *needs browser relay* *needs logged-in session* *file upload fails* *re
 The agent isn't dumb. The infrastructure just isn't there. Authentication dies when the human walks away. File uploaders reject programmatic input. Sessions expire with no recovery path. Every platform is a silo.
 
 **AgentReach fixes this at the root.**
+
+---
+
+## Real-World Use Cases
+
+**For digital product sellers:**
+> "I told my AI agent to publish my new journal to KDP, Etsy, and Gumroad — all three — while I was at my kid's soccer game. Everything was live when I got back."
+
+**For content creators:**
+> "My agent posts to Pinterest every day at 9am. I haven't touched Pinterest manually in two months."
+
+**For AI developers:**
+> "I stopped building one-off browser automations and just use AgentReach. All my sessions in one vault, one API call to any platform."
+
+**For agencies:**
+> "We manage 12 clients' digital product stores. AgentReach handles all the uploads. We focus on strategy."
 
 ---
 
@@ -60,7 +85,22 @@ No human. No relay. No browser window. Just results.
 | Etsy | ✅ | ✅ | ✅ | — |
 | Gumroad | ✅ | ✅ | ✅ | — |
 | Pinterest | — | — | — | ✅ |
+| *LinkedIn, Shopify, YouTube, Substack* | *Pro* | *Pro* | *Pro* | *Pro* |
 | *More via community drivers* | | | | |
+
+---
+
+## AgentReach vs Alternatives
+
+| | AgentReach | Browser Use / Stagehand | Playwright (DIY) | RPA Tools |
+|--|--|--|--|--|
+| Works without API | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
+| Session persistence | ✅ Built-in vault | ❌ Manual | ❌ Manual | ⚠️ Varies |
+| React upload bypass | ✅ Solved | ❌ Common failure | ❌ Manual | ⚠️ Varies |
+| Platform drivers | ✅ KDP, Etsy, Gumroad, Pinterest | ❌ DIY | ❌ DIY | ⚠️ Varies |
+| OpenClaw integration | ✅ Native skill | ❌ No | ❌ No | ❌ No |
+| Setup time | ✅ 10 min | ⚠️ Hours | ❌ Days | ❌ Days |
+| Cost | ✅ Free (MIT) | ⚠️ Usage-based | ✅ Free | ❌ Expensive |
 
 ---
 
@@ -79,6 +119,8 @@ pip install -e .
 ```bash
 playwright install chromium
 ```
+
+📖 **[Full Getting Started Guide →](docs/GETTING-STARTED.md)**
 
 ---
 
@@ -148,6 +190,17 @@ See `skills/agentreach/SKILL.md` for full agent usage docs.
 
 ---
 
+## Built With AgentReach
+
+_Using AgentReach in production? [Open a PR](https://github.com/tenlifejosh/agentreach/pulls) to add your project here._
+
+| Project | Use Case | By |
+|---------|----------|----|
+| [Ten Life Creatives](https://tenlifecreatives.com) | Digital product publishing to KDP, Etsy, Gumroad | @tenlifejosh |
+| *Your project here* | *Your use case* | *You* |
+
+---
+
 ## Security
 
 - Sessions stored at `~/.agentreach/vault/` (AES-256 encrypted)
@@ -201,11 +254,19 @@ AgentReach is MIT licensed. PRs welcome.
 
 ## Why We Built This
 
-We're building digital products with an AI agent (Hutch, powered by OpenClaw). Every day, the agent would build something great and then hit a wall — a login screen, a file uploader, a session that died overnight.
+We're building digital products with an AI agent (Hutch, powered by [OpenClaw](https://openclaw.ai)). Every day, the agent would build something great and then hit a wall — a login screen, a file uploader, a session that died overnight.
 
 The agent wasn't the problem. The plumbing was.
 
 AgentReach is that plumbing. Build it once, open source it, and let every agent builder stand on it.
+
+---
+
+## Pro Tier
+
+Need cloud session sync, team vaults, or custom platform drivers?
+
+📄 **[See COMMERCIAL.md for Pro & Enterprise →](COMMERCIAL.md)**
 
 ---
 
