@@ -23,11 +23,15 @@ kdp_app = typer.Typer(help="Amazon KDP commands")
 etsy_app = typer.Typer(help="Etsy commands")
 gumroad_app = typer.Typer(help="Gumroad commands")
 pinterest_app = typer.Typer(help="Pinterest commands")
+reddit_app = typer.Typer(help="Reddit commands")
+twitter_app = typer.Typer(help="X/Twitter commands")
 
 app.add_typer(kdp_app, name="kdp")
 app.add_typer(etsy_app, name="etsy")
 app.add_typer(gumroad_app, name="gumroad")
 app.add_typer(pinterest_app, name="pinterest")
+app.add_typer(reddit_app, name="reddit")
+app.add_typer(twitter_app, name="twitter")
 
 
 # ── Top-level commands ────────────────────────────────────────────────────────
@@ -42,7 +46,7 @@ def status():
 
 @app.command()
 def harvest(
-    platform: str = typer.Argument(..., help="Platform to harvest: kdp, etsy, gumroad, pinterest"),
+    platform: str = typer.Argument(..., help="Platform to harvest: kdp, etsy, gumroad, pinterest, reddit, twitter"),
     timeout: int = typer.Option(300, help="Seconds to wait for login (default: 300)"),
 ):
     """
@@ -252,6 +256,88 @@ def pinterest_pin(
     console.print(f"[bold]📌 Posting pin '{title}' to Pinterest...[/bold]")
     driver = PinterestDriver()
     result = driver.post_pin(pin)
+
+    if result.success:
+        rprint(f"[green]✅ {result.message}[/green]")
+    else:
+        rprint(f"[red]❌ {result.error}[/red]")
+        raise typer.Exit(1)
+
+
+# ── Reddit commands ───────────────────────────────────────────────────────────
+
+@reddit_app.command("comment")
+def reddit_comment(
+    url: str = typer.Argument(..., help="Full URL of the Reddit thread"),
+    text: str = typer.Argument(..., help="Comment text to post"),
+):
+    """Post a comment on a Reddit thread."""
+    from .drivers.reddit import RedditDriver
+
+    console.print(f"[bold]💬 Posting comment on Reddit...[/bold]")
+    driver = RedditDriver()
+    result = driver.comment(url, text)
+
+    if result.success:
+        rprint(f"[green]✅ {result.message}[/green]")
+    else:
+        rprint(f"[red]❌ {result.error}[/red]")
+        raise typer.Exit(1)
+
+
+@reddit_app.command("post")
+def reddit_post(
+    subreddit: str = typer.Argument(..., help="Subreddit name (without r/ prefix)"),
+    title: str = typer.Argument(..., help="Post title"),
+    body: str = typer.Argument(..., help="Post body text"),
+):
+    """Create a new text post in a subreddit."""
+    from .drivers.reddit import RedditDriver
+
+    console.print(f"[bold]📝 Creating post in r/{subreddit}...[/bold]")
+    driver = RedditDriver()
+    result = driver.post(subreddit, title, body)
+
+    if result.success:
+        rprint(f"[green]✅ {result.message}[/green]")
+        if result.url:
+            rprint(f"   URL: {result.url}")
+    else:
+        rprint(f"[red]❌ {result.error}[/red]")
+        raise typer.Exit(1)
+
+
+# ── Twitter/X commands ────────────────────────────────────────────────────────
+
+@twitter_app.command("tweet")
+def twitter_tweet(
+    text: str = typer.Argument(..., help="Tweet text (max 280 characters)"),
+):
+    """Post a new tweet to X/Twitter."""
+    from .drivers.twitter import TwitterDriver
+
+    console.print(f"[bold]🐦 Posting tweet...[/bold]")
+    driver = TwitterDriver()
+    result = driver.tweet(text)
+
+    if result.success:
+        rprint(f"[green]✅ {result.message}[/green]")
+    else:
+        rprint(f"[red]❌ {result.error}[/red]")
+        raise typer.Exit(1)
+
+
+@twitter_app.command("reply")
+def twitter_reply(
+    url: str = typer.Argument(..., help="Full URL to the tweet to reply to"),
+    text: str = typer.Argument(..., help="Reply text"),
+):
+    """Reply to a tweet by URL."""
+    from .drivers.twitter import TwitterDriver
+
+    console.print(f"[bold]↩️  Posting reply...[/bold]")
+    driver = TwitterDriver()
+    result = driver.reply(url, text)
 
     if result.success:
         rprint(f"[green]✅ {result.message}[/green]")

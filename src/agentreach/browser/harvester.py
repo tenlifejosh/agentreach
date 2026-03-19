@@ -28,6 +28,8 @@ LOGIN_URLS = {
     "etsy": "https://www.etsy.com/signin",
     "gumroad": "https://gumroad.com/login",
     "pinterest": "https://www.pinterest.com/login/",
+    "reddit": "https://www.reddit.com/login",
+    "twitter": "https://x.com/i/flow/login",
 }
 
 # Signals that login is complete (URL patterns to wait for)
@@ -36,6 +38,8 @@ POST_LOGIN_URL_PATTERNS = {
     "etsy": "etsy.com/your/shops",
     "gumroad": "gumroad.com/dashboard",
     "pinterest": "pinterest.com/",
+    "reddit": "reddit.com",
+    "twitter": "x.com/home",
 }
 
 # For some platforms, after the initial login we need the user to navigate
