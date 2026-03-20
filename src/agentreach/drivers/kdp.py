@@ -208,6 +208,76 @@ class KDPDriver(BasePlatformDriver):
                 except Exception:
                     pass
 
+        # Publishing rights — must click before categories button enables
+        try:
+            await page.locator('#non-public-domain').click(timeout=5000)
+            await page.wait_for_timeout(500)
+        except Exception:
+            pass
+
+        # Categories — use JavaScript to interact with React-controlled selects
+        if details.categories:
+            try:
+                # Open the categories modal
+                await page.locator('#categories-modal-button').click(timeout=8000)
+                await page.wait_for_timeout(1500)
+
+                # KDP categories modal uses cascading React selects
+                # Values are JSON strings — use JS to fire React's onChange properly
+                async def set_react_select(selector: str, value: str):
+                    """Set a React-controlled select by dispatching native events."""
+                    await page.evaluate(f"""
+                        (function() {{
+                            const sel = document.querySelector('{selector}');
+                            if (!sel) return;
+                            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+                                window.HTMLSelectElement.prototype, 'value').set;
+                            nativeInputValueSetter.call(sel, {repr(value)});
+                            sel.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                        }})();
+                    """)
+                    await page.wait_for_timeout(800)
+
+                # Level 0: Religion & Spirituality
+                l0_options = await page.evaluate("""
+                    Array.from(document.querySelectorAll('select[name="react-aui-0"] option'))
+                        .map(o => ({value: o.value, text: o.textContent.trim()}))
+                """)
+                l0_value = next((o['value'] for o in l0_options if 'Religion' in o['text']), None)
+                if l0_value:
+                    await set_react_select('select[name="react-aui-0"]', l0_value)
+
+                # Level 2: Christian Books & Bibles (levels skip — 0→2)
+                await page.wait_for_timeout(1000)
+                l2_options = await page.evaluate("""
+                    Array.from(document.querySelectorAll('select[name="react-aui-2"] option'))
+                        .map(o => ({value: o.value, text: o.textContent.trim()}))
+                """)
+                l2_value = next((o['value'] for o in l2_options if 'Christian' in o['text']), None)
+                if l2_value:
+                    await set_react_select('select[name="react-aui-2"]', l2_value)
+
+                # Level 4: Christian Living (levels skip — 2→4)
+                await page.wait_for_timeout(1000)
+                l4_options = await page.evaluate("""
+                    Array.from(document.querySelectorAll('select[name="react-aui-4"] option'))
+                        .map(o => ({value: o.value, text: o.textContent.trim()}))
+                """)
+                l4_value = next((o['value'] for o in l4_options if 'Living' in o['text']), None)
+                if l4_value:
+                    await set_react_select('select[name="react-aui-4"]', l4_value)
+
+                # Save categories
+                await page.wait_for_timeout(500)
+                save_btn = page.locator('button:has-text("Save categories")')
+                if await save_btn.count() > 0:
+                    await save_btn.click(timeout=5000)
+                    await page.wait_for_timeout(1000)
+
+            except Exception as e:
+                # Categories non-fatal — continue without them
+                pass
+
     async def _upload_content(
         self,
         page,
