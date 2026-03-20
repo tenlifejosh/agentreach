@@ -37,7 +37,7 @@ POST_LOGIN_URL_PATTERNS = {
     "kdp": "kdp.amazon.com/en_US/bookshelf",
     "etsy": "etsy.com/your/shops",
     "gumroad": "gumroad.com/dashboard",
-    "pinterest": "pinterest.com/",
+    "pinterest": "pinterest.com/home_feed",
     "reddit": "reddit.com/r/",
     "twitter": "x.com/home",
 }
