@@ -38,7 +38,7 @@ POST_LOGIN_URL_PATTERNS = {
     "etsy": "etsy.com/your/shops",
     "gumroad": "gumroad.com/dashboard",
     "pinterest": "pinterest.com/",
-    "reddit": "reddit.com",
+    "reddit": "reddit.com/r/",
     "twitter": "x.com/home",
 }
 
