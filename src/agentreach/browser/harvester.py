@@ -30,6 +30,7 @@ LOGIN_URLS = {
     "pinterest": "https://www.pinterest.com/login/",
     "reddit": "https://www.reddit.com/login",
     "twitter": "https://x.com/i/flow/login",
+    "tiktok": "https://www.tiktok.com/login",
 }
 
 # Signals that login is complete (URL patterns to wait for)
@@ -40,6 +41,7 @@ POST_LOGIN_URL_PATTERNS = {
     "pinterest": "pinterest.com/home_feed",
     "reddit": "reddit.com/r/",
     "twitter": "x.com/home",
+    "tiktok": "tiktok.com/foryou",
 }
 
 # For some platforms, after the initial login we need the user to navigate
@@ -167,3 +169,4 @@ async def harvest_session(
 def harvest(platform: str, vault: Optional[SessionVault] = None, timeout: int = HARVEST_TIMEOUT):
     """Synchronous wrapper for harvest_session."""
     return asyncio.run(harvest_session(platform, vault, timeout))
+# TikTok added
