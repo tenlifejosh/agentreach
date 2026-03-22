@@ -6,6 +6,15 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 ---
 
+## [0.2.1] — 2026-03-22
+
+### Fixed
+
+- **TikTok PLATFORM_META** — Added TikTok to the platform icon/label registry. Previously rendered as `🔲 Tiktok` in `doctor` and `status` output; now correctly renders as `🎵 TikTok`.
+- **README platform table** — Added TikTok, Reddit, and X/Twitter to the supported platforms table (they were supported but unlisted).
+
+---
+
 ## [0.2.0] — 2026-03-20
 
 ### Added

@@ -45,6 +45,7 @@ PLATFORM_META = {
     "pinterest": {"icon": "📌", "label": "Pinterest"},
     "reddit":    {"icon": "🤖", "label": "Reddit"},
     "twitter":   {"icon": "🐦", "label": "X / Twitter"},
+    "tiktok":    {"icon": "🎵", "label": "TikTok"},
 }
 
 

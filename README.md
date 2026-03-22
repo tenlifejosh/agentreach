@@ -86,6 +86,9 @@ No human. No relay. No browser window. Just results.
 | Etsy | ✅ | ✅ | ✅ | — |
 | Gumroad | ✅ | ✅ | ✅ | — |
 | Pinterest | — | — | — | ✅ |
+| TikTok | — | — | ✅ | ✅ |
+| Reddit | — | — | ✅ | ✅ |
+| X / Twitter | — | — | ✅ | ✅ |
 | *LinkedIn, Shopify, YouTube, Substack* | *Pro* | *Pro* | *Pro* | *Pro* |
 | *More via community drivers* | | | | |
 
