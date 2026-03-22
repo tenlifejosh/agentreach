@@ -9,3 +9,6 @@ build/
 .DS_Store
 vault/
 
+ai_products_screenshots/
+demand_*screenshots/
+publish_*.py
