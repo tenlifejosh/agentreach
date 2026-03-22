@@ -1,7 +1,7 @@
-# Debug and test scripts
-debug_*.py
-test_*.py
-fix_*.py
+# Debug and one-off scripts (root level only)
+/debug_*.py
+/test_*.py
+/fix_*.py
 publish_*.py
 check_*.py
 verify_*.py
