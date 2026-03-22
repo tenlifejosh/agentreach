@@ -1,14 +1,45 @@
-*.vault
-*.pyc
+# Debug and test scripts
+debug_*.py
+test_*.py
+fix_*.py
+publish_*.py
+check_*.py
+verify_*.py
+create_*.py
+post_*.py
+upload_*.py
+run_*.py
+republish_*.py
+complete_*.py
+delete_*.py
+kdp_*.py
+
+# Screenshots
+*_screenshots/
+*.png
+*.jpg
+
+# Temp files
+*.txt
+playbook_results.txt
+
+# Python
 __pycache__/
+*.pyc
+*.pyo
 .venv/
+venv/
+*.egg-info/
 dist/
 build/
-*.egg-info/
-.env
+
+# OS
 .DS_Store
+.DS_Store?
+
+# Vault / secrets
+*.vault
 vault/
 
-ai_products_screenshots/
-demand_*screenshots/
-publish_*.py
+# Env
+.env

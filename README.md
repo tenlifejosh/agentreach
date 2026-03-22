@@ -3,8 +3,9 @@
 **Never ask a human to open a browser again.**
 
 [![GitHub stars](https://img.shields.io/github/stars/tenlifejosh/agentreach?style=social)](https://github.com/tenlifejosh/agentreach/stargazers)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+![Version](https://img.shields.io/badge/version-0.2.0-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Python](https://img.shields.io/badge/python-3.9+-blue)
 
 AgentReach gives AI agents persistent, authenticated access to any web platform — KDP, Etsy, Gumroad, Pinterest, and beyond. One 10-minute bootstrap session. Autonomous forever after.
 
