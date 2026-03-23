@@ -27,18 +27,36 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class EtsyListing:
+    """Metadata for a new Etsy product listing.
+
+    Attributes:
+        title:           Listing title.
+        description:     Listing description (supports basic HTML).
+        price:           Price in USD (e.g. 7.99).
+        tags:            Up to 13 keyword tags for search discoverability.
+        materials:       Materials used (optional, for physical goods).
+        quantity:        Available stock quantity (default 999 for digital goods).
+        who_made:        Who made the item: 'i_did', 'someone_else', or 'collective'.
+        is_supply:       True if this is a craft supply rather than a finished item.
+        when_made:       Production date range (e.g. '2020_2025').
+        taxonomy_id:     Etsy category taxonomy ID. Default 2078 (Patterns & How To).
+        digital_files:   Local file paths to attach as downloadable digital goods.
+        image_paths:     Local paths to mockup/preview images (up to 10).
+        shop_section_id: Optional shop section ID to file the listing under.
+    """
+
     title: str
     description: str
-    price: float                      # e.g. 7.99
-    tags: list[str] = field(default_factory=list)       # up to 13
+    price: float
+    tags: list[str] = field(default_factory=list)
     materials: list[str] = field(default_factory=list)
     quantity: int = 999
-    who_made: str = "i_did"           # i_did, someone_else, collective
+    who_made: str = "i_did"
     is_supply: bool = False
     when_made: str = "2020_2025"
-    taxonomy_id: int = 2078           # Craft Supplies & Tools > Patterns & How To
-    digital_files: list[str] = field(default_factory=list)   # file paths
-    image_paths: list[str] = field(default_factory=list)     # mockup image paths
+    taxonomy_id: int = 2078
+    digital_files: list[str] = field(default_factory=list)
+    image_paths: list[str] = field(default_factory=list)
     shop_section_id: Optional[int] = None
 
 
@@ -83,7 +101,13 @@ class EtsyDriver(BasePlatformDriver):
         return api_key, access_token, shop_id
 
     def save_credentials(self, api_key: str, access_token: str, shop_id: str) -> None:
-        """Save Etsy API credentials to the vault."""
+        """Save Etsy API credentials to the vault.
+
+        Args:
+            api_key:      Etsy Open API v3 key.
+            access_token: OAuth access token for the shop.
+            shop_id:      Numeric Etsy shop ID as a string.
+        """
         try:
             existing = self.vault.load("etsy") or {}
         except Exception:
@@ -94,7 +118,7 @@ class EtsyDriver(BasePlatformDriver):
             "shop_id": shop_id,
         })
         self.vault.save("etsy", existing)
-        print("✅ Etsy credentials saved to vault.")
+        logger.info("Etsy credentials saved to vault.")
 
     def _headers(self, api_key: str, access_token: str) -> dict:
         return {

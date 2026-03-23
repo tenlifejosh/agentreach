@@ -41,13 +41,29 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class KDPBookDetails:
+    """Metadata for a KDP paperback listing.
+
+    Attributes:
+        title:            Book title (required).
+        subtitle:         Optional subtitle.
+        author:           Author full name as "First Last". Single-name authors
+                          are also accepted.
+        publisher:        Optional publisher name.
+        description:      HTML-formatted book description. Injected into CKEditor.
+        keywords:         Up to 7 keyword strings for discoverability.
+        categories:       BISAC category paths for classification.
+        price_usd:        List price in US dollars.
+        language:         Book language (default: "English").
+        primary_audience: Target audience identifier (default: "general").
+    """
+
     title: str
     subtitle: str = ""
-    author: str = ""           # Format: "First Last" — no default, caller must specify
+    author: str = ""
     publisher: str = ""
-    description: str = ""  # HTML — injected into CKEditor
-    keywords: list[str] = field(default_factory=list)  # up to 7
-    categories: list[str] = field(default_factory=list)  # BISAC
+    description: str = ""
+    keywords: list[str] = field(default_factory=list)
+    categories: list[str] = field(default_factory=list)
     price_usd: float = 12.99
     language: str = "English"
     primary_audience: str = "general"
@@ -607,7 +623,16 @@ class KDPDriver(BasePlatformDriver):
         manuscript_path: str | Path,
         cover_path: str | Path,
     ) -> UploadResult:
-        """Synchronous wrapper."""
+        """Synchronous wrapper for :meth:`create_paperback`.
+
+        Args:
+            details:         Book metadata.
+            manuscript_path: Path to the interior PDF.
+            cover_path:      Path to the full-wrap cover PDF.
+
+        Returns:
+            UploadResult with success status, product_id, and url.
+        """
         return asyncio.run(self.create_paperback(details, manuscript_path, cover_path))
 
     def continue_paperback(
@@ -618,5 +643,18 @@ class KDPDriver(BasePlatformDriver):
         cover_path: str | Path,
         start_at_step: int = 1,
     ) -> UploadResult:
-        """Synchronous wrapper for resume_paperback."""
-        return asyncio.run(self.resume_paperback(book_id, details, manuscript_path, cover_path, start_at_step))
+        """Synchronous wrapper for :meth:`resume_paperback`.
+
+        Args:
+            book_id:       KDP book ID to resume (e.g. '2XPF7965VJP').
+            details:       Book metadata to fill/update.
+            manuscript_path: Path to the interior PDF.
+            cover_path:    Path to the full-wrap cover PDF.
+            start_at_step: Step to resume from (1=details, 2=content, 3=pricing).
+
+        Returns:
+            UploadResult with success status and url.
+        """
+        return asyncio.run(
+            self.resume_paperback(book_id, details, manuscript_path, cover_path, start_at_step)
+        )

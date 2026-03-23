@@ -610,7 +610,7 @@ async def platform_action(
         return (
             f"❌ Action '{action}' not found on {platform.upper()} driver.\n\n"
             f"Available actions: {', '.join(available_actions)}\n\n"
-            "Use driver_list(platform='{platform}') for descriptions."
+            f"Use driver_list(platform='{platform}') for descriptions."
         )
 
     method = getattr(driver, action)
@@ -650,7 +650,7 @@ async def platform_action(
             f"❌ Parameter error calling {platform}.{action}: {exc}\n\n"
             f"Expected signature: {action}{params_hint}\n"
             f"You passed: {json.dumps(params, default=str, indent=2)}\n\n"
-            "Use driver_list(platform='{platform}') to see action descriptions."
+            f"Use driver_list(platform='{platform}') to see action descriptions."
         )
     except Exception as exc:
         return (

@@ -1,17 +1,18 @@
-"""
-AgentReach CLI
-Simple, powerful command-line interface for agent-driven platform automation.
-"""
+"""AgentReach CLI — simple, powerful command-line interface for agent-driven platform automation."""
 
-import typer
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
-from rich.text import Text
-from rich import print as rprint
+import logging
+import subprocess
+import sys
 from pathlib import Path
 from typing import Optional
-import sys
+
+import typer
+from rich import print as rprint
+from rich.console import Console
+from rich.table import Table
+from rich.text import Text
+
+from agentreach import __version__
 
 app = typer.Typer(
     name="agentreach",
@@ -38,7 +39,6 @@ app.add_typer(reddit_app, name="reddit")
 app.add_typer(twitter_app, name="twitter")
 app.add_typer(nextdoor_app, name="nextdoor")
 
-
 # Platform metadata for display
 PLATFORM_META = {
     "kdp":       {"icon": "📚", "label": "Amazon KDP"},
@@ -51,13 +51,22 @@ PLATFORM_META = {
     "tiktok":    {"icon": "🎵", "label": "TikTok"},
 }
 
+# Authentication method descriptions for display
+PLATFORM_AUTH = {
+    "kdp":       "Browser (cookie harvest)",
+    "etsy":      "API token + OAuth",
+    "gumroad":   "API token",
+    "pinterest": "Browser (cookie harvest)",
+    "reddit":    "Browser (cookie harvest)",
+    "twitter":   "Browser (cookie harvest)",
+}
+
 
 # ── Top-level commands ────────────────────────────────────────────────────────
 
 @app.command()
-def version():
+def version() -> None:
     """Show AgentReach version."""
-    from agentreach import __version__
     console.print(f"[bold cyan]AgentReach[/bold cyan] v{__version__}")
 
 
@@ -65,9 +74,9 @@ def version():
 def main_callback(
     ctx: typer.Context,
     ver: bool = typer.Option(False, "--version", "-v", help="Show version and exit."),
-):
+) -> None:
+    """AgentReach — persistent authenticated web access for AI agents."""
     if ver:
-        from agentreach import __version__
         console.print(f"[bold cyan]AgentReach[/bold cyan] v{__version__}")
         raise typer.Exit()
     if ctx.invoked_subcommand is None:
@@ -75,7 +84,7 @@ def main_callback(
 
 
 @app.command()
-def status():
+def status() -> None:
     """Check health of all platform sessions (Rich table)."""
     from .vault.health import check_all, SessionStatus, PLATFORM_TTL_DAYS
     from .vault.store import SessionVault
@@ -83,14 +92,24 @@ def status():
     vault = SessionVault()
     results = check_all(vault)
 
-    table = Table(title="🦾 AgentReach — Session Status", show_header=True, header_style="bold magenta")
-    table.add_column("", width=3)           # icon
+    table = Table(
+        title="🦾 AgentReach — Session Status",
+        show_header=True,
+        header_style="bold magenta",
+    )
+    table.add_column("", width=3)
     table.add_column("Platform", style="bold", min_width=14)
     table.add_column("Status", min_width=12)
     table.add_column("Days Left", justify="right", min_width=9)
     table.add_column("Last Harvested", min_width=18)
 
-    status_counts = {"healthy": 0, "warning": 0, "critical": 0, "expired": 0, "missing": 0}
+    status_counts: dict[str, int] = {
+        "healthy": 0,
+        "warning": 0,
+        "critical": 0,
+        "expired": 0,
+        "missing": 0,
+    }
 
     for h in results:
         meta = PLATFORM_META.get(h.platform, {"icon": "🔲", "label": h.platform.capitalize()})
@@ -117,7 +136,7 @@ def status():
         else:
             status_text = Text("? Unknown", style="dim")
 
-        days_left = str(h.days_remaining) if h.days_remaining is not None else "—"
+        days_left: str = str(h.days_remaining) if h.days_remaining is not None else "—"
         if h.days_remaining is not None:
             if h.days_remaining <= 2:
                 days_left = f"[bold red]{days_left}[/bold red]"
@@ -134,7 +153,6 @@ def status():
 
     console.print(table)
 
-    # Summary line
     parts = []
     if status_counts["healthy"]:
         parts.append(f"[green]{status_counts['healthy']} healthy[/green]")
@@ -152,26 +170,22 @@ def status():
 
 
 @app.command()
-def doctor():
+def doctor() -> None:
     """Full system health check — sessions, drivers, vault, recommendations."""
-    import subprocess
-    from .vault.health import check_all, SessionStatus, PLATFORM_TTL_DAYS
+    import platform as _platform
+
+    from .vault.health import check_all, SessionStatus
     from .vault.store import SessionVault
-    from agentreach import __version__
 
     console.rule("[bold cyan]🦾 AgentReach Doctor[/bold cyan]")
     console.print()
 
-    # ── 1. Version ────────────────────────────────────────────────────────────
+    # Version info
     console.print(f"[bold]Version:[/bold] AgentReach v{__version__}")
-
-    # ── 2. Python version ─────────────────────────────────────────────────────
-    import platform as _platform
-    py_ver = _platform.python_version()
-    console.print(f"[bold]Python:[/bold]  {py_ver}")
+    console.print(f"[bold]Python:[/bold]  {_platform.python_version()}")
     console.print()
 
-    # ── 3. Sessions table ─────────────────────────────────────────────────────
+    # Sessions table
     vault = SessionVault()
     results = check_all(vault)
 
@@ -183,7 +197,7 @@ def doctor():
     table.add_column("Harvested", min_width=18)
     table.add_column("Action Needed", min_width=40)
 
-    recommendations = []
+    recommendations: list[tuple[str, str, Optional[int]]] = []
     for h in results:
         meta = PLATFORM_META.get(h.platform, {"icon": "🔲", "label": h.platform.capitalize()})
         label = f"{meta['icon']}  {meta['label']}"
@@ -220,7 +234,7 @@ def doctor():
     console.print(table)
     console.print()
 
-    # ── 4. Driver versions ────────────────────────────────────────────────────
+    # Driver versions
     console.rule("[bold]Driver Versions[/bold]")
     driver_table = Table(show_header=True, header_style="bold blue")
     driver_table.add_column("Driver", min_width=14)
@@ -232,15 +246,15 @@ def doctor():
         label = f"{meta['icon']}  {meta['label']}"
         try:
             from .drivers import get_driver
-            _ = get_driver(name)
+            get_driver(name)
             driver_table.add_row(label, Text("✅ Loaded", style="green"))
-        except Exception as e:
-            driver_table.add_row(label, Text(f"❌ {e}", style="red"))
+        except Exception as exc:
+            driver_table.add_row(label, Text(f"❌ {exc}", style="red"))
 
     console.print(driver_table)
     console.print()
 
-    # ── 5. Vault status ───────────────────────────────────────────────────────
+    # Vault status
     console.rule("[bold]Vault[/bold]")
     from .vault.store import VAULT_DIR
     vault_path = VAULT_DIR
@@ -252,12 +266,14 @@ def doctor():
     console.print(f"  Sessions stored: [bold]{len(vault_files)}[/bold]")
     console.print()
 
-    # ── 6. Playwright ─────────────────────────────────────────────────────────
+    # Playwright check
     console.rule("[bold]Browser (Playwright)[/bold]")
     try:
         result = subprocess.run(
             [sys.executable, "-c", "import playwright; print(playwright.__version__)"],
-            capture_output=True, text=True, timeout=10
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
         pw_ver = result.stdout.strip() or "installed"
         console.print(f"  Playwright: [green]{pw_ver}[/green]")
@@ -265,28 +281,36 @@ def doctor():
         console.print("  Playwright: [red]not found — run: playwright install[/red]")
 
     try:
-        result = subprocess.run(
+        subprocess.run(
             ["playwright", "install", "--dry-run"],
-            capture_output=True, text=True, timeout=10
+            capture_output=True,
+            text=True,
+            timeout=10,
         )
-        console.print(f"  Chromium: [green]available[/green]")
+        console.print("  Chromium: [green]available[/green]")
     except Exception:
         console.print("  Chromium: [yellow]status unknown[/yellow]")
 
     console.print()
 
-    # ── 7. Recommendations ────────────────────────────────────────────────────
+    # Recommendations
     if recommendations:
         console.rule("[bold yellow]Recommendations[/bold yellow]")
         for platform, severity, days in recommendations:
             if severity == "expired":
-                console.print(f"  [bold red]❌  {platform.upper()}[/bold red] session expired — re-harvest immediately:")
+                console.print(
+                    f"  [bold red]❌  {platform.upper()}[/bold red] session expired — re-harvest immediately:"
+                )
                 console.print(f"      [yellow]agentreach harvest {platform}[/yellow]")
             elif severity == "critical":
-                console.print(f"  [red]🔴  {platform.upper()}[/red] expires in {days} days — harvest soon:")
+                console.print(
+                    f"  [red]🔴  {platform.upper()}[/red] expires in {days} days — harvest soon:"
+                )
                 console.print(f"      [yellow]agentreach harvest {platform}[/yellow]")
             elif severity == "warning":
-                console.print(f"  [yellow]⚠️   {platform.upper()}[/yellow] expires in {days} days — schedule re-harvest:")
+                console.print(
+                    f"  [yellow]⚠️   {platform.upper()}[/yellow] expires in {days} days — schedule re-harvest:"
+                )
                 console.print(f"      [dim]agentreach harvest {platform}[/dim]")
         console.print()
     else:
@@ -296,28 +320,23 @@ def doctor():
 
 
 @app.command()
-def platforms():
+def platforms() -> None:
     """List all supported platforms with session status."""
     from .vault.health import check_session, SessionStatus
     from .vault.store import SessionVault
 
     vault = SessionVault()
 
-    table = Table(title="🦾 AgentReach — Supported Platforms", show_header=True, header_style="bold magenta")
+    table = Table(
+        title="🦾 AgentReach — Supported Platforms",
+        show_header=True,
+        header_style="bold magenta",
+    )
     table.add_column("", width=3)
     table.add_column("Platform", style="bold", min_width=14)
     table.add_column("Session", min_width=12)
     table.add_column("Auth Method", min_width=20)
     table.add_column("Bootstrap Command", min_width=30)
-
-    PLATFORM_AUTH = {
-        "kdp":       "Browser (cookie harvest)",
-        "etsy":      "API token + OAuth",
-        "gumroad":   "API token",
-        "pinterest": "Browser (cookie harvest)",
-        "reddit":    "Browser (cookie harvest)",
-        "twitter":   "Browser (cookie harvest)",
-    }
 
     for platform, meta in PLATFORM_META.items():
         health = check_session(platform, vault)
@@ -340,12 +359,19 @@ def platforms():
 
 @app.command()
 def backup(
-    output: Optional[Path] = typer.Option(None, help="Output file path (default: ~/.agentreach/backups/vault-YYYY-MM-DD.enc)"),
-):
+    output: Optional[Path] = typer.Option(
+        None,
+        help="Output file path (default: ~/.agentreach/backups/vault-YYYY-MM-DD.enc)",
+    ),
+) -> None:
     """Export encrypted vault to a backup file."""
-    import shutil
+    import base64
+    import json
     from datetime import date
-    from .vault.store import VAULT_DIR
+
+    from cryptography.fernet import Fernet
+
+    from .vault.store import VAULT_DIR, _FERNET
 
     backup_dir = Path.home() / ".agentreach" / "backups"
     backup_dir.mkdir(parents=True, exist_ok=True)
@@ -359,13 +385,7 @@ def backup(
         console.print("[yellow]⚠️  No vault sessions found. Nothing to backup.[/yellow]")
         raise typer.Exit(0)
 
-    # Pack all vault files into a single encrypted archive
-    import json
-    import base64
-    from cryptography.fernet import Fernet
-    from .vault.store import _FERNET
-
-    bundle = {}
+    bundle: dict[str, str] = {}
     for vf in vault_files:
         raw = vf.read_bytes()
         bundle[vf.name] = base64.b64encode(raw).decode()
@@ -383,10 +403,11 @@ def backup(
 def restore(
     input_file: Path = typer.Argument(..., help="Backup file to restore from (.enc)"),
     overwrite: bool = typer.Option(False, "--overwrite", help="Overwrite existing sessions"),
-):
+) -> None:
     """Import vault sessions from a backup file."""
-    import json
     import base64
+    import json
+
     from .vault.store import VAULT_DIR, _FERNET
 
     if not input_file.exists():
@@ -397,12 +418,12 @@ def restore(
         encrypted = input_file.read_bytes()
         payload = _FERNET.decrypt(encrypted)
         bundle = json.loads(payload.decode())
-    except Exception as e:
-        console.print(f"[red]❌ Failed to decrypt backup: {e}[/red]")
+    except Exception as exc:
+        console.print(f"[red]❌ Failed to decrypt backup: {exc}[/red]")
         raise typer.Exit(1)
 
-    restored = []
-    skipped = []
+    restored: list[str] = []
+    skipped: list[str] = []
 
     for filename, encoded in bundle.items():
         dest = VAULT_DIR / filename
@@ -414,9 +435,14 @@ def restore(
         restored.append(filename)
 
     if restored:
-        console.print(f"[green]✅ Restored:[/green] {', '.join(r.replace('.vault','') for r in restored)}")
+        console.print(
+            f"[green]✅ Restored:[/green] {', '.join(r.replace('.vault', '') for r in restored)}"
+        )
     if skipped:
-        console.print(f"[yellow]⏭  Skipped (already exist):[/yellow] {', '.join(s.replace('.vault','') for s in skipped)}")
+        console.print(
+            f"[yellow]⏭  Skipped (already exist):[/yellow] "
+            f"{', '.join(s.replace('.vault', '') for s in skipped)}"
+        )
         console.print("   Use --overwrite to replace existing sessions.")
 
     if not restored and not skipped:
@@ -425,30 +451,40 @@ def restore(
 
 @app.command()
 def harvest(
-    platform: str = typer.Argument(..., help="Platform to harvest: kdp, etsy, gumroad, pinterest, reddit, twitter, nextdoor, tiktok"),
+    platform: str = typer.Argument(
+        ...,
+        help="Platform to harvest: kdp, etsy, gumroad, pinterest, reddit, twitter, nextdoor, tiktok",
+    ),
     timeout: int = typer.Option(300, help="Seconds to wait for login (default: 300)"),
-):
+) -> None:
     """
     Bootstrap a platform session. Opens a browser — log in normally.
+
     This is the ONE-TIME setup per platform. After this: fully autonomous.
     """
     from .browser.harvester import harvest as do_harvest
+
     do_harvest(platform, timeout=timeout)
 
 
 @app.command()
 def verify(
     platform: str = typer.Argument(..., help="Platform to verify"),
-):
+) -> None:
     """Verify a saved session is still valid (makes a live request)."""
-    from .drivers import get_driver
-    driver = get_driver(platform)
     import asyncio
+
+    from .drivers import get_driver
+
+    driver = get_driver(platform)
     valid = asyncio.run(driver.verify_session())
     if valid:
         rprint(f"[green]✅ {platform.upper()} session is valid.[/green]")
     else:
-        rprint(f"[red]❌ {platform.upper()} session is invalid or expired. Run: agentreach harvest {platform}[/red]")
+        rprint(
+            f"[red]❌ {platform.upper()} session is invalid or expired. "
+            f"Run: agentreach harvest {platform}[/red]"
+        )
 
 
 # ── KDP commands ──────────────────────────────────────────────────────────────
@@ -463,9 +499,9 @@ def kdp_upload(
     description: str = typer.Option("", help="HTML book description"),
     price: float = typer.Option(12.99, help="USD price"),
     keywords: str = typer.Option("", help="Comma-separated keywords (up to 7)"),
-):
+) -> None:
     """Upload a new paperback to Amazon KDP."""
-    from .drivers.kdp import KDPDriver, KDPBookDetails
+    from .drivers.kdp import KDPBookDetails, KDPDriver
 
     details = KDPBookDetails(
         title=title,
@@ -491,9 +527,10 @@ def kdp_upload(
 
 
 @kdp_app.command("bookshelf")
-def kdp_bookshelf():
+def kdp_bookshelf() -> None:
     """List all books on your KDP bookshelf with current status."""
     import asyncio
+
     from .drivers.kdp import KDPDriver
 
     driver = KDPDriver()
@@ -515,9 +552,10 @@ def kdp_bookshelf():
 @gumroad_app.command("set-token")
 def gumroad_set_token(
     token: str = typer.Argument(..., help="Gumroad API access token"),
-):
+) -> None:
     """Save a Gumroad API access token to the vault."""
     from .drivers.gumroad import GumroadDriver
+
     driver = GumroadDriver()
     driver.save_token(token)
 
@@ -529,7 +567,7 @@ def gumroad_publish(
     price: float = typer.Option(..., help="Price in USD (e.g. 7.99)"),
     file: Optional[Path] = typer.Option(None, help="Path to digital file (PDF, ZIP, etc.)"),
     url: str = typer.Option("", help="Custom URL slug"),
-):
+) -> None:
     """Publish a new product to Gumroad."""
     from .drivers.gumroad import GumroadDriver, GumroadProduct
 
@@ -556,16 +594,23 @@ def gumroad_publish(
 
 @gumroad_app.command("sales")
 def gumroad_sales(
-    after: Optional[str] = typer.Option(None, help="ISO date to filter from (e.g. 2026-01-01)"),
-):
+    after: Optional[str] = typer.Option(
+        None, help="ISO date to filter from (e.g. 2026-01-01)"
+    ),
+) -> None:
     """Check Gumroad sales."""
     from .drivers.gumroad import GumroadDriver
+
     driver = GumroadDriver()
     data = driver.check_sales(after=after)
     sales = data.get("sales", [])
     rprint(f"[bold]Total sales found: {len(sales)}[/bold]")
     for s in sales[:10]:
-        rprint(f"  ${s.get('price', 0)/100:.2f} — {s.get('product_name', 'Unknown')} — {s.get('created_at', '')}")
+        rprint(
+            f"  ${s.get('price', 0) / 100:.2f} — "
+            f"{s.get('product_name', 'Unknown')} — "
+            f"{s.get('created_at', '')}"
+        )
 
 
 # ── Etsy commands ─────────────────────────────────────────────────────────────
@@ -575,9 +620,10 @@ def etsy_set_credentials(
     api_key: str = typer.Option(..., help="Etsy API key"),
     access_token: str = typer.Option(..., help="OAuth access token"),
     shop_id: str = typer.Option(..., help="Your Etsy shop ID"),
-):
+) -> None:
     """Save Etsy API credentials to the vault."""
     from .drivers.etsy import EtsyDriver
+
     driver = EtsyDriver()
     driver.save_credentials(api_key, access_token, shop_id)
 
@@ -590,7 +636,7 @@ def etsy_publish(
     digital_file: Optional[Path] = typer.Option(None, help="Path to digital file"),
     images: str = typer.Option("", help="Comma-separated paths to mockup images"),
     tags: str = typer.Option("", help="Comma-separated tags (up to 13)"),
-):
+) -> None:
     """Publish a new listing to Etsy."""
     from .drivers.etsy import EtsyDriver, EtsyListing
 
@@ -624,7 +670,7 @@ def pinterest_pin(
     image: Path = typer.Option(..., help="Path to pin image"),
     link: str = typer.Option("", help="Destination URL"),
     board: str = typer.Option("Faith Journals", help="Board name"),
-):
+) -> None:
     """Post a new pin to Pinterest."""
     from .drivers.pinterest import PinterestDriver, PinterestPin
 
@@ -654,11 +700,11 @@ def pinterest_pin(
 def reddit_comment(
     url: str = typer.Argument(..., help="Full URL of the Reddit thread"),
     text: str = typer.Argument(..., help="Comment text to post"),
-):
+) -> None:
     """Post a comment on a Reddit thread."""
     from .drivers.reddit import RedditDriver
 
-    console.print(f"[bold]💬 Posting comment on Reddit...[/bold]")
+    console.print("[bold]💬 Posting comment on Reddit...[/bold]")
     driver = RedditDriver()
     driver.require_valid_session()
     result = driver.comment(url, text)
@@ -675,7 +721,7 @@ def reddit_post(
     subreddit: str = typer.Argument(..., help="Subreddit name (without r/ prefix)"),
     title: str = typer.Argument(..., help="Post title"),
     body: str = typer.Argument(..., help="Post body text"),
-):
+) -> None:
     """Create a new text post in a subreddit."""
     from .drivers.reddit import RedditDriver
 
@@ -698,11 +744,11 @@ def reddit_post(
 @twitter_app.command("tweet")
 def twitter_tweet(
     text: str = typer.Argument(..., help="Tweet text (max 280 characters)"),
-):
+) -> None:
     """Post a new tweet to X/Twitter."""
     from .drivers.twitter import TwitterDriver
 
-    console.print(f"[bold]🐦 Posting tweet...[/bold]")
+    console.print("[bold]🐦 Posting tweet...[/bold]")
     driver = TwitterDriver()
     driver.require_valid_session()
     result = driver.tweet(text)
@@ -718,11 +764,11 @@ def twitter_tweet(
 def twitter_reply(
     url: str = typer.Argument(..., help="Full URL to the tweet to reply to"),
     text: str = typer.Argument(..., help="Reply text"),
-):
+) -> None:
     """Reply to a tweet by URL."""
     from .drivers.twitter import TwitterDriver
 
-    console.print(f"[bold]↩️  Posting reply...[/bold]")
+    console.print("[bold]↩️  Posting reply...[/bold]")
     driver = TwitterDriver()
     driver.require_valid_session()
     result = driver.reply(url, text)
@@ -738,12 +784,14 @@ def twitter_reply(
 
 @nextdoor_app.command("post")
 def nextdoor_post(
-    text: str = typer.Argument(..., help="Post content to publish to the Nextdoor neighborhood feed"),
-):
+    text: str = typer.Argument(
+        ..., help="Post content to publish to the Nextdoor neighborhood feed"
+    ),
+) -> None:
     """Post to the Nextdoor neighborhood feed as the logged-in business account."""
     from .drivers.nextdoor import NextdoorDriver
 
-    console.print(f"[bold]🏘️  Posting to Nextdoor...[/bold]")
+    console.print("[bold]🏘️  Posting to Nextdoor...[/bold]")
     driver = NextdoorDriver()
     driver.require_valid_session()
     result = driver.post(text)
@@ -757,7 +805,9 @@ def nextdoor_post(
         raise typer.Exit(1)
 
 
-def main():
+def main() -> None:
+    """Entry point for the agentreach CLI."""
+    logging.basicConfig(level=logging.WARNING, format="%(levelname)s: %(message)s")
     app()
 
 

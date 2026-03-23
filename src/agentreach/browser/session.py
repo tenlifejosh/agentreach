@@ -19,11 +19,11 @@ except ImportError:  # pragma: no cover - optional dependency fallback only
 
 
 class SessionNotFoundError(Exception):
-    pass
+    """Raised when no session is found in the vault for a given platform."""
 
 
 class SessionExpiredError(Exception):
-    pass
+    """Raised when the stored session for a platform has passed its estimated TTL."""
 
 
 @asynccontextmanager

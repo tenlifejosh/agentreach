@@ -29,6 +29,14 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class RedditPost:
+    """Data for creating a new Reddit text post.
+
+    Attributes:
+        subreddit: Target subreddit name (without the r/ prefix).
+        title:     Post title.
+        body:      Post body text.
+    """
+
     subreddit: str
     title: str
     body: str
@@ -36,6 +44,13 @@ class RedditPost:
 
 @dataclass
 class RedditComment:
+    """Data for posting a comment on a Reddit thread.
+
+    Attributes:
+        thread_url: Full URL of the Reddit thread to comment on.
+        text:       Comment body text.
+    """
+
     thread_url: str
     text: str
 

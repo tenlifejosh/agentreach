@@ -24,10 +24,21 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class GumroadProduct:
+    """Metadata for a new Gumroad product listing.
+
+    Attributes:
+        name:             Product display name.
+        description:      Product description (plain text or HTML).
+        price_cents:      Price in US cents (e.g. 799 for $7.99).
+        custom_url:       Optional custom URL slug for the product page.
+        file_path:        Local path to the digital file to attach.
+        cover_image_path: Local path to the cover/preview image.
+    """
+
     name: str
     description: str
-    price_cents: int          # e.g. 799 for $7.99
-    custom_url: str = ""      # Custom URL slug
+    price_cents: int
+    custom_url: str = ""
     file_path: Optional[str] = None
     cover_image_path: Optional[str] = None
 
@@ -78,7 +89,11 @@ class GumroadDriver(BasePlatformDriver):
         return None
 
     def save_token(self, token: str) -> None:
-        """Save a Gumroad API token to the vault."""
+        """Save a Gumroad API access token to the vault.
+
+        Args:
+            token: The Gumroad API access token to persist.
+        """
         try:
             existing = self.vault.load("gumroad") or {}
         except Exception:
@@ -86,7 +101,7 @@ class GumroadDriver(BasePlatformDriver):
         existing["access_token"] = token
         self.vault.save("gumroad", existing)
         self._access_token = token
-        print("✅ Gumroad API token saved to vault.")
+        logger.info("Gumroad API token saved to vault.")
 
     async def verify_session(self) -> bool:
         """

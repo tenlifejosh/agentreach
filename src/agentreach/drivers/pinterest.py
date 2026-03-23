@@ -32,6 +32,17 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class PinterestPin:
+    """Data for creating a new Pinterest pin.
+
+    Attributes:
+        title:       Pin title.
+        description: Pin description shown below the image.
+        image_path:  Local path to the pin image file.
+        link:        Optional destination URL when the pin is clicked.
+        board_name:  Name of the board to post the pin to (created if absent).
+        alt_text:    Optional alt text for accessibility.
+    """
+
     title: str
     description: str
     image_path: str | Path
