@@ -7,7 +7,7 @@ from datetime import datetime, timezone, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch, PropertyMock
 from pathlib import Path
 
-from agentreach.drivers.base import BasePlatformDriver, UploadResult
+from agentreach.drivers.base import BasePlatformDriver, UploadResult, SessionExpiredError, InvalidSessionError
 from agentreach.drivers import get_driver, DRIVERS
 from agentreach.vault.store import SessionVault
 from agentreach.vault.health import SessionStatus
@@ -68,21 +68,19 @@ class TestBasePlatformDriver:
         result = driver.check_health()
         assert result is True
 
-    def test_require_valid_session_exits_if_expired(self, vault, capsys):
-        """require_valid_session calls sys.exit when expired."""
+    def test_require_valid_session_raises_if_expired(self, vault, capsys):
+        """require_valid_session raises SessionExpiredError when expired."""
         old_time = datetime.now(timezone.utc) - timedelta(days=90)
         save_with_timestamp(vault, "test_platform", old_time)
         driver = ConcretePlatformDriver(vault=vault)
-        with pytest.raises(SystemExit) as exc_info:
+        with pytest.raises(SessionExpiredError):
             driver.require_valid_session()
-        assert exc_info.value.code == 1
 
-    def test_require_valid_session_exits_if_missing(self, vault, capsys):
-        """require_valid_session calls sys.exit when missing."""
+    def test_require_valid_session_raises_if_missing(self, vault, capsys):
+        """require_valid_session raises InvalidSessionError when missing."""
         driver = ConcretePlatformDriver(vault=vault)
-        with pytest.raises(SystemExit) as exc_info:
+        with pytest.raises(InvalidSessionError):
             driver.require_valid_session()
-        assert exc_info.value.code == 1
 
     def test_require_valid_session_warns_if_expiring(self, vault, capsys):
         """require_valid_session warns but doesn't exit if expiring soon."""

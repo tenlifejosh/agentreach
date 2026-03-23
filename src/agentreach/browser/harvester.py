@@ -20,6 +20,7 @@ from typing import Optional
 from playwright.async_api import async_playwright
 
 from ..vault.store import SessionVault
+from ..drivers.base import run_async
 
 logger = logging.getLogger(__name__)
 
@@ -204,4 +205,4 @@ def harvest(
     Returns:
         The harvested session data dict.
     """
-    return asyncio.run(harvest_session(platform, vault, timeout))
+    return run_async(harvest_session(platform, vault, timeout))

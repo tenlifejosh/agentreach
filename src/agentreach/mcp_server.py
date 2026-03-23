@@ -43,7 +43,7 @@ mcp = FastMCP(
     instructions=(
         "AgentReach gives AI agents persistent, authenticated access to web platforms "
         "(KDP, Etsy, Gumroad, Pinterest, Reddit, Nextdoor, Twitter/X). "
-        "Sessions are AES-256 encrypted and stored locally — nothing leaves the machine. "
+        "Sessions are AES-128-CBC (Fernet) encrypted and stored locally — nothing leaves the machine. "
         "Use vault_status / vault_health to inspect stored sessions, platform_login to "
         "verify a session is active, harvest_session to guide the human through "
         "authenticating a new platform, driver_list to discover available drivers and "

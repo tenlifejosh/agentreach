@@ -25,7 +25,7 @@ agentreach/
 │   ├── cli.py                 # Typer CLI — all commands
 │   │
 │   ├── vault/
-│   │   ├── store.py           # SessionVault — AES-256 encrypted storage
+│   │   ├── store.py           # SessionVault — AES-128-CBC (Fernet) encrypted storage
 │   │   ├── health.py          # SessionHealth — TTL-based expiry detection
 │   │   └── monitor.py         # Session categorization + status bucketing
 │   │
@@ -345,7 +345,7 @@ agentreach kdp upload --manuscript book.pdf --cover cover.pdf --title "My Book"
 |---|---|---|
 | `playwright` | ≥1.40.0 | Browser automation |
 | `httpx` | ≥0.25.0 | Async HTTP for API drivers |
-| `cryptography` | ≥41.0.0 | Fernet/AES-256 + PBKDF2 |
+| `cryptography` | ≥41.0.0 | Fernet/AES-128-CBC + PBKDF2 |
 | `typer` | ≥0.9.0 | CLI framework |
 | `rich` | ≥13.0.0 | Terminal output |
 | `playwright-stealth` | 2.0.2 | Bot detection evasion (not in declared deps — install separately) |

@@ -1,6 +1,6 @@
 """AgentReach platform drivers — registry and factory."""
 
-from .base import BasePlatformDriver, UploadResult
+from .base import BasePlatformDriver, SessionExpiredError, InvalidSessionError, UploadResult
 from .etsy import EtsyDriver
 from .gumroad import GumroadDriver
 from .kdp import KDPDriver

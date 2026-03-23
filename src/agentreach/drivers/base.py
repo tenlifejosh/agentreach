@@ -1,16 +1,75 @@
 """AgentReach — Base Platform Driver. All platform drivers extend this class."""
 
+import asyncio
 import logging
-import sys
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Any, Awaitable, Optional, TypeVar
 
 from ..vault.health import SessionStatus, check_session
 from ..vault.store import SessionVault
 
+_T = TypeVar("_T")
+
+
+def run_async(coro: Awaitable[_T]) -> _T:
+    """Run an async coroutine safely regardless of whether an event loop is running.
+
+    ``asyncio.run()`` raises RuntimeError when called from within an already-running
+    event loop (e.g. when called from an AI agent framework, Jupyter, or any async
+    host process). This helper detects that situation and uses the existing loop
+    via ``loop.run_until_complete()`` instead.
+
+    Args:
+        coro: An awaitable (coroutine) to run.
+
+    Returns:
+        The return value of the coroutine.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        # No event loop is running — safe to use asyncio.run()
+        return asyncio.run(coro)  # type: ignore[return-value]
+
+    # An event loop IS running (e.g. inside an AI agent or Jupyter).
+    # Submit as a task and wait for it. This requires the caller's loop to be
+    # able to process events (i.e. not be blocked). For truly synchronous callers
+    # inside a running loop, prefer awaiting the async method directly.
+    import concurrent.futures
+    import threading
+
+    result_container: list[Any] = []
+    exception_container: list[BaseException] = []
+
+    def run_in_thread() -> None:
+        new_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(new_loop)
+        try:
+            result_container.append(new_loop.run_until_complete(coro))
+        except BaseException as exc:  # noqa: BLE001
+            exception_container.append(exc)
+        finally:
+            new_loop.close()
+
+    thread = threading.Thread(target=run_in_thread, daemon=True)
+    thread.start()
+    thread.join()
+
+    if exception_container:
+        raise exception_container[0]
+    return result_container[0]  # type: ignore[return-value]
+
 logger = logging.getLogger(__name__)
+
+
+class SessionExpiredError(RuntimeError):
+    """Raised when the platform session is expired and must be re-harvested."""
+
+
+class InvalidSessionError(RuntimeError):
+    """Raised when no session exists for the platform."""
 
 
 @dataclass
@@ -76,30 +135,31 @@ class BasePlatformDriver(ABC):
     def require_valid_session(self) -> None:
         """Assert that a usable session exists before running any operation.
 
-        Logs a clear message and exits with code 1 if the session is expired
-        or missing. Logs a warning (but does not exit) if the session is
+        Logs a clear message and raises an exception if the session is expired
+        or missing. Logs a warning (but does not raise) if the session is
         expiring soon.
 
         Raises:
-            SystemExit: With exit code 1 when the session is expired or missing.
+            SessionExpiredError: When the session is expired.
+            InvalidSessionError: When no session exists for this platform.
         """
         health = check_session(self.platform_name, self.vault)
 
         if health.status == SessionStatus.EXPIRED:
-            logger.error(
-                "%s session is expired. Re-harvest with: agentreach harvest %s",
-                self.platform_name.upper(),
-                self.platform_name,
+            msg = (
+                f"{self.platform_name.upper()} session is expired. "
+                f"Re-harvest with: agentreach harvest {self.platform_name}"
             )
-            sys.exit(1)
+            logger.error(msg)
+            raise SessionExpiredError(msg)
 
         elif health.status == SessionStatus.MISSING:
-            logger.error(
-                "No %s session found. Bootstrap with: agentreach harvest %s",
-                self.platform_name.upper(),
-                self.platform_name,
+            msg = (
+                f"No {self.platform_name.upper()} session found. "
+                f"Bootstrap with: agentreach harvest {self.platform_name}"
             )
-            sys.exit(1)
+            logger.error(msg)
+            raise InvalidSessionError(msg)
 
         elif health.status == SessionStatus.EXPIRING_SOON:
             days = health.days_remaining if health.days_remaining is not None else "?"

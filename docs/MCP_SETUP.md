@@ -368,7 +368,7 @@ AgentReach MCP Server
 ├── mcp_server.py          ← This file — FastMCP server with 6 tools
 │
 ├── vault/
-│   ├── store.py           ← SessionVault (AES-256 encrypted storage)
+│   ├── store.py           ← SessionVault (AES-128-CBC Fernet encrypted storage)
 │   └── health.py          ← Session health checks / expiry detection
 │
 ├── browser/

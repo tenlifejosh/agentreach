@@ -21,7 +21,7 @@ from typing import Optional
 
 from ..browser.session import platform_context
 from ..vault.store import SessionVault
-from .base import BasePlatformDriver, UploadResult
+from .base import BasePlatformDriver, UploadResult, run_async
 
 
 logger = logging.getLogger(__name__)
@@ -247,8 +247,8 @@ class RedditDriver(BasePlatformDriver):
 
     def comment(self, thread_url: str, text: str) -> UploadResult:
         """Synchronous wrapper for post_comment."""
-        return asyncio.run(self.post_comment(thread_url, text))
+        return run_async(self.post_comment(thread_url, text))
 
     def post(self, subreddit: str, title: str, body: str) -> UploadResult:
         """Synchronous wrapper for create_post."""
-        return asyncio.run(self.create_post(subreddit, title, body))
+        return run_async(self.create_post(subreddit, title, body))

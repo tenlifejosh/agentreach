@@ -21,7 +21,7 @@ from typing import Optional
 
 from ..browser.session import platform_context
 from ..vault.store import SessionVault
-from .base import BasePlatformDriver, UploadResult
+from .base import BasePlatformDriver, UploadResult, run_async
 
 
 logger = logging.getLogger(__name__)
@@ -214,8 +214,8 @@ class TwitterDriver(BasePlatformDriver):
 
     def tweet(self, text: str) -> UploadResult:
         """Synchronous wrapper for post_tweet."""
-        return asyncio.run(self.post_tweet(text))
+        return run_async(self.post_tweet(text))
 
     def reply(self, tweet_url: str, text: str) -> UploadResult:
         """Synchronous wrapper for reply_to_tweet."""
-        return asyncio.run(self.reply_to_tweet(tweet_url, text))
+        return run_async(self.reply_to_tweet(tweet_url, text))

@@ -19,7 +19,7 @@ import httpx
 from ..vault.store import SessionVault
 from ..browser.session import platform_context
 from ..browser.uploader import upload_file, wait_for_upload_complete
-from .base import BasePlatformDriver, UploadResult
+from .base import BasePlatformDriver, UploadResult, run_async
 
 
 logger = logging.getLogger(__name__)
@@ -331,4 +331,4 @@ class EtsyDriver(BasePlatformDriver):
 
     def publish_listing(self, listing: EtsyListing) -> UploadResult:
         """Synchronous wrapper."""
-        return asyncio.run(self.create_listing(listing))
+        return run_async(self.create_listing(listing))

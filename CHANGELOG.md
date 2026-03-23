@@ -62,7 +62,7 @@ All notable changes to AgentReach. Format follows [Keep a Changelog](https://kee
 - `twitter.py` driver — tweet and reply via browser session
 - `agentreach status` command — Rich table showing session health for all platforms
 - Full Typer CLI with sub-apps per platform (`agentreach kdp`, `agentreach etsy`, etc.)
-- `vault/store.py` — `SessionVault` class with AES-256 Fernet encryption
+- `vault/store.py` — `SessionVault` class with AES-128-CBC (Fernet) encryption
 - PBKDF2-HMAC-SHA256 key derivation with 480,000 iterations
 - Machine-specific key (MAC address seed) — vault non-portable by design
 - `agentreach harvest <platform>` — visible-browser session capture with auto URL-pattern detection

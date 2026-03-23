@@ -20,7 +20,7 @@ from typing import Optional
 
 from ..browser.session import platform_context
 from ..vault.store import SessionVault
-from .base import BasePlatformDriver, UploadResult
+from .base import BasePlatformDriver, UploadResult, run_async
 
 
 logger = logging.getLogger(__name__)
@@ -199,4 +199,4 @@ class NextdoorDriver(BasePlatformDriver):
 
     def post(self, text: str) -> UploadResult:
         """Synchronous wrapper for create_post."""
-        return asyncio.run(self.create_post(text))
+        return run_async(self.create_post(text))

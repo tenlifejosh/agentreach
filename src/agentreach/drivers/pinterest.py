@@ -24,7 +24,7 @@ from typing import Optional
 
 from ..browser.session import platform_context
 from ..vault.store import SessionVault
-from .base import BasePlatformDriver, UploadResult
+from .base import BasePlatformDriver, UploadResult, run_async
 
 
 logger = logging.getLogger(__name__)
@@ -269,8 +269,8 @@ class PinterestDriver(BasePlatformDriver):
 
     def post_pin(self, pin: PinterestPin) -> UploadResult:
         """Synchronous wrapper."""
-        return asyncio.run(self.create_pin(pin))
+        return run_async(self.create_pin(pin))
 
     def ensure_board(self, board_name: str) -> bool:
         """Synchronous wrapper for ensure_board_exists."""
-        return asyncio.run(self.ensure_board_exists(board_name))
+        return run_async(self.ensure_board_exists(board_name))

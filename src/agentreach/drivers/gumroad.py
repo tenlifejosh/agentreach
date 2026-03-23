@@ -16,7 +16,7 @@ import httpx
 from ..vault.store import SessionVault
 from ..browser.session import platform_context
 from ..browser.uploader import upload_file, wait_for_upload_complete
-from .base import BasePlatformDriver, UploadResult
+from .base import BasePlatformDriver, UploadResult, run_async
 
 
 logger = logging.getLogger(__name__)
@@ -334,8 +334,8 @@ class GumroadDriver(BasePlatformDriver):
 
     def publish_product(self, product: GumroadProduct) -> UploadResult:
         """Synchronous wrapper for create_product."""
-        return asyncio.run(self.create_product(product))
+        return run_async(self.create_product(product))
 
     def check_sales(self, after: Optional[str] = None) -> dict:
         """Synchronous wrapper for get_sales."""
-        return asyncio.run(self.get_sales(after))
+        return run_async(self.get_sales(after))

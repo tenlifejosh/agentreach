@@ -25,7 +25,7 @@ AgentReach stores two kinds of secrets:
 Each vault file is encrypted with **Fernet** from the Python `cryptography` library.
 
 Fernet is a composition of:
-- **AES-256-CBC** for symmetric encryption
+- **AES-128-CBC (Fernet)** for symmetric encryption
 - **HMAC-SHA256** for authentication
 - A **random 128-bit IV** generated per encryption operation
 

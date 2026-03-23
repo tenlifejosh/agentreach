@@ -123,8 +123,8 @@ class TestExpiredSessions:
         result = check_session("kdp", vault)
         assert "harvest" in result.message.lower()
 
-    def test_require_valid_session_exits_on_expired(self, vault):
-        from agentreach.drivers.base import BasePlatformDriver
+    def test_require_valid_session_raises_on_expired(self, vault):
+        from agentreach.drivers.base import BasePlatformDriver, SessionExpiredError
 
         class MockDriver(BasePlatformDriver):
             platform_name = "kdp"
@@ -135,9 +135,8 @@ class TestExpiredSessions:
         save_with_timestamp(vault, "kdp", old)
         driver = MockDriver(vault=vault)
 
-        with pytest.raises(SystemExit) as exc:
+        with pytest.raises(SessionExpiredError):
             driver.require_valid_session()
-        assert exc.value.code == 1
 
     def test_expired_session_in_browser_context(self, vault):
         import asyncio

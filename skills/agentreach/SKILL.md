@@ -93,7 +93,7 @@ agentreach pinterest pin \
 
 ## How Sessions Work
 - Sessions harvested once and stored encrypted at `~/.agentreach/vault/`
-- Encryption is machine-specific (AES-256, key derived from machine UUID)
+- Encryption is machine-specific (AES-128-CBC via Fernet, key derived from machine UUID)
 - Sessions typically last 30-60 days
 - Run `agentreach status` to see expiry dates
 - Re-harvest when a session expires (~2 min per platform)

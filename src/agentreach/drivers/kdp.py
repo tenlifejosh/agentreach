@@ -33,7 +33,7 @@ from typing import Optional
 from ..browser.session import platform_context
 from ..browser.uploader import upload_file, wait_for_upload_complete
 from ..vault.store import SessionVault
-from .base import BasePlatformDriver, UploadResult
+from .base import BasePlatformDriver, UploadResult, run_async
 
 
 logger = logging.getLogger(__name__)
@@ -253,6 +253,7 @@ class KDPDriver(BasePlatformDriver):
             logger.debug("KDP non-public-domain click failed: %s", exc)
 
         # Categories — use JavaScript to interact with React-controlled selects
+        # Use provided categories if available; no silent override to Christianity.
         if details.categories:
             try:
                 # Open the categories modal
@@ -275,34 +276,41 @@ class KDPDriver(BasePlatformDriver):
                     """)
                     await page.wait_for_timeout(800)
 
-                # Level 0: Religion & Spirituality
-                l0_options = await page.evaluate("""
-                    Array.from(document.querySelectorAll('select[name="react-aui-0"] option'))
-                        .map(o => ({value: o.value, text: o.textContent.trim()}))
-                """)
-                l0_value = next((o['value'] for o in l0_options if 'Religion' in o['text']), None)
-                if l0_value:
-                    await set_react_select('select[name="react-aui-0"]', l0_value)
-
-                # Level 2: Christian Books & Bibles (levels skip — 0→2)
-                await page.wait_for_timeout(1000)
-                l2_options = await page.evaluate("""
-                    Array.from(document.querySelectorAll('select[name="react-aui-2"] option'))
-                        .map(o => ({value: o.value, text: o.textContent.trim()}))
-                """)
-                l2_value = next((o['value'] for o in l2_options if 'Christian' in o['text']), None)
-                if l2_value:
-                    await set_react_select('select[name="react-aui-2"]', l2_value)
-
-                # Level 4: Christian Living (levels skip — 2→4)
-                await page.wait_for_timeout(1000)
-                l4_options = await page.evaluate("""
-                    Array.from(document.querySelectorAll('select[name="react-aui-4"] option'))
-                        .map(o => ({value: o.value, text: o.textContent.trim()}))
-                """)
-                l4_value = next((o['value'] for o in l4_options if 'Living' in o['text']), None)
-                if l4_value:
-                    await set_react_select('select[name="react-aui-4"]', l4_value)
+                # Walk through the user-supplied category path, level by level.
+                # details.categories is expected to be a list of strings in order
+                # from most general to most specific (e.g. ["Religion & Spirituality",
+                # "Christian Books & Bibles", "Christian Living"]).
+                # KDP's cascading selects use names react-aui-0, react-aui-2, react-aui-4
+                # (even-numbered levels only for most paths).
+                level_selectors = [
+                    'select[name="react-aui-0"]',
+                    'select[name="react-aui-2"]',
+                    'select[name="react-aui-4"]',
+                    'select[name="react-aui-6"]',
+                ]
+                for level_idx, category_term in enumerate(details.categories[:4]):
+                    if level_idx >= len(level_selectors):
+                        break
+                    selector = level_selectors[level_idx]
+                    if level_idx > 0:
+                        await page.wait_for_timeout(1000)
+                    options = await page.evaluate(f"""
+                        Array.from(document.querySelectorAll('{selector} option'))
+                            .map(o => ({{value: o.value, text: o.textContent.trim()}}))
+                    """)
+                    # Match the user-supplied term against available options
+                    matched_value = next(
+                        (o['value'] for o in options if category_term.lower() in o['text'].lower()),
+                        None
+                    )
+                    if matched_value:
+                        await set_react_select(selector, matched_value)
+                        logger.debug("KDP category level %d: set to '%s'", level_idx, category_term)
+                    else:
+                        logger.warning(
+                            "KDP category level %d: no match found for '%s' among %d options",
+                            level_idx, category_term, len(options)
+                        )
 
                 # Save categories
                 await page.wait_for_timeout(500)
@@ -314,6 +322,8 @@ class KDPDriver(BasePlatformDriver):
             except Exception as e:
                 # Categories non-fatal — continue without them but log the failure
                 logger.warning("KDP category fill failed (non-fatal): %s", e)
+        else:
+            logger.debug("KDP: no categories provided — skipping category selection")
 
     async def _upload_content(
         self,
@@ -476,14 +486,22 @@ class KDPDriver(BasePlatformDriver):
                     logger.warning("KDP price fill failed (non-fatal): %s", exc)
 
                 # Publish — look for the publish/save-and-publish button
+                publish_clicked = False
                 try:
                     publish_btn = page.locator(
                         '#save-and-publish, #save-and-continue, [id*="publish"], button:has-text("Publish")'
                     ).first
                     await publish_btn.click(timeout=5000)
                     await page.wait_for_load_state("domcontentloaded", timeout=30000)
+                    publish_clicked = True
                 except Exception as exc:
-                    logger.warning("KDP publish button click failed: %s", exc)
+                    logger.error("KDP publish button click failed: %s", exc)
+                    return UploadResult(
+                        success=False,
+                        platform="kdp",
+                        error=f"Publish button interaction failed: {exc}",
+                        message="KDP publish failed — could not click publish button",
+                    )
 
                 url = page.url
                 book_id = None
@@ -597,7 +615,13 @@ class KDPDriver(BasePlatformDriver):
                         await publish_btn.click(timeout=5000)
                         await page.wait_for_load_state("domcontentloaded", timeout=30000)
                     except Exception as exc:
-                        logger.warning("KDP resume: publish button click failed: %s", exc)
+                        logger.error("KDP resume: publish button click failed: %s", exc)
+                        return UploadResult(
+                            success=False,
+                            platform="kdp",
+                            error=f"Publish button interaction failed: {exc}",
+                            message=f"KDP resume publish failed for book {book_id}",
+                        )
 
                 url = page.url
                 return UploadResult(
@@ -633,7 +657,7 @@ class KDPDriver(BasePlatformDriver):
         Returns:
             UploadResult with success status, product_id, and url.
         """
-        return asyncio.run(self.create_paperback(details, manuscript_path, cover_path))
+        return run_async(self.create_paperback(details, manuscript_path, cover_path))
 
     def continue_paperback(
         self,
@@ -655,6 +679,6 @@ class KDPDriver(BasePlatformDriver):
         Returns:
             UploadResult with success status and url.
         """
-        return asyncio.run(
+        return run_async(
             self.resume_paperback(book_id, details, manuscript_path, cover_path, start_at_step)
         )

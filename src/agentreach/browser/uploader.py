@@ -212,7 +212,11 @@ async def wait_for_upload_complete(
     success_indicator: Optional[str] = None,
     timeout: int = 60000,
 ) -> bool:
-    """Wait for an upload to complete."""
+    """Wait for an upload to complete.
+
+    Returns True only when upload completion can be positively confirmed.
+    Returns False when confirmation cannot be established — never lies about success.
+    """
     if success_indicator:
         try:
             await page.wait_for_selector(success_indicator, timeout=timeout)
@@ -231,5 +235,10 @@ async def wait_for_upload_complete(
     except Exception as exc:
         logger.debug("Generic upload completion wait did not find a progress element: %s", exc)
 
-    await page.wait_for_timeout(5000)
-    return True
+    # Cannot confirm upload completed — do not lie about success
+    logger.warning(
+        "wait_for_upload_complete: could not confirm upload finished. "
+        "No progress indicator found and no success selector provided. "
+        "Returning False — caller should verify upload state independently."
+    )
+    return False

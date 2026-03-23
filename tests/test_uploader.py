@@ -171,14 +171,14 @@ class TestWaitForUploadComplete:
 
     @pytest.mark.asyncio
     async def test_generic_wait_no_indicator(self):
-        """With no indicator, falls back to generic wait."""
+        """With no indicator and no progress element found, returns False (cannot confirm)."""
         mock_page = AsyncMock()
         mock_page.wait_for_selector = AsyncMock(side_effect=Exception("not found"))
         mock_page.wait_for_timeout = AsyncMock()
 
         result = await wait_for_upload_complete(mock_page)
-        # Should still return True (fallback)
-        assert result is True
+        # Cannot confirm completion without any indicator — returns False honestly
+        assert result is False
 
     @pytest.mark.asyncio
     async def test_custom_timeout_passed_to_selector(self):

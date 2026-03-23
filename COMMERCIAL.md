@@ -11,7 +11,7 @@ AgentReach is open source and always will be. The core is free. We build revenue
 **What's included:**
 - Full source code (MIT licensed)
 - All current platform drivers: KDP, Etsy, Gumroad, Pinterest
-- Encrypted local session vault (AES-256)
+- Encrypted local session vault (AES-128-CBC Fernet)
 - CLI tool (`agentreach`)
 - Headless browser automation (Playwright)
 - React upload bypass engine

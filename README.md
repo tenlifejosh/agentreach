@@ -54,7 +54,7 @@ That's it. No passwords stored. No API keys for KDP. Just your encrypted session
 ┌────────────────────────────────────────────────────────┐
 │                    Session Vault                        │
 │        ~/.agentreach/vault/<platform>.vault            │
-│        AES-256 encrypted, machine-specific key         │
+│        AES-128-CBC (Fernet) encrypted, machine-specific key         │
 └──────────────────────────┬─────────────────────────────┘
                            │ decrypted at runtime
                            ▼
@@ -81,7 +81,7 @@ That's it. No passwords stored. No API keys for KDP. Just your encrypted session
 
 ## Features
 
-- **Encrypted session vault** — AES-256-CBC + HMAC (Fernet) with machine-specific key derivation via PBKDF2 (480,000 iterations). Nothing leaves disk.
+- **Encrypted session vault** — AES-128-CBC + HMAC (Fernet) with machine-specific key derivation via PBKDF2 (480,000 iterations). Nothing leaves disk.
 - **Session health monitoring** — TTL-based expiry estimates, `status` command, `doctor` command with actionable recommendations
 - **Browser session harvester** — opens a visible browser, waits for you to log in, captures cookies automatically via URL pattern detection
 - **Headless session replay** — injects harvested cookies into a Playwright context and runs automation silently
@@ -100,12 +100,14 @@ That's it. No passwords stored. No API keys for KDP. Just your encrypted session
 | Etsy | ✅ Stable | API token + OAuth | Create listing, upload images, upload digital files |
 | Gumroad | ✅ Stable | API token | Publish product, check sales, list products |
 | Pinterest | ✅ Stable | Browser session | Create pin, create board |
-| Reddit | ✅ Stable | Browser session | Post, comment |
-| X / Twitter | ✅ Stable | Browser session | Tweet, reply |
+| Reddit | ⚠️ Beta | Browser session | Post, comment |
+| X / Twitter | ⚠️ Beta | Browser session | Tweet, reply |
 | Nextdoor | ✅ Beta | Browser session | Post to neighborhood feed |
 | TikTok | 🚧 Vault only | Browser session | Session storage only — no actions yet |
 
 > **Browser-based drivers are inherently fragile.** Platform UI changes will break selectors. Selectors were last verified March 2026. Expect maintenance over time.
+
+> ⚠️ **Bot detection note:** Platforms with advanced bot detection (Twitter/X, Reddit, Amazon KDP) may require session refresh more frequently. If you encounter authentication failures or unexpected redirects, re-run `agentreach harvest <platform>` to refresh the session. These platforms actively fingerprint headless browsers and may invalidate sessions within hours to days.
 
 ---
 
@@ -224,7 +226,7 @@ agentreach nextdoor post "Your neighborhood post text here"
 
 Sessions are stored in `~/.agentreach/vault/` as individual `.vault` files — one per platform.
 
-**Encryption:** Fernet (AES-256-CBC + HMAC-SHA256). The key is derived via PBKDF2-HMAC-SHA256 with 480,000 iterations using your machine's MAC address as the seed. This makes vault files non-portable by design — a vault file moved to another machine cannot be decrypted.
+**Encryption:** Fernet (AES-128-CBC + HMAC-SHA256). The key is derived via PBKDF2-HMAC-SHA256 with 480,000 iterations using your machine's MAC address as the seed. This makes vault files non-portable by design — a vault file moved to another machine cannot be decrypted.
 
 **What's stored:** Playwright cookies (serialized JSON), OAuth tokens, API keys, and metadata (`harvested_at`, `_saved_at`).
 
