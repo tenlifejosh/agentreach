@@ -31,6 +31,7 @@ LOGIN_URLS = {
     "reddit": "https://www.reddit.com/login",
     "twitter": "https://x.com/i/flow/login",
     "tiktok": "https://www.tiktok.com/login",
+    "nextdoor": "https://nextdoor.com/login/",
 }
 
 # Signals that login is complete (URL patterns to wait for)
@@ -42,6 +43,7 @@ POST_LOGIN_URL_PATTERNS = {
     "reddit": "reddit.com/r/",
     "twitter": "x.com/home",
     "tiktok": "tiktok.com/foryou",
+    "nextdoor": "nextdoor.com/news_feed",
 }
 
 # For some platforms, after the initial login we need the user to navigate

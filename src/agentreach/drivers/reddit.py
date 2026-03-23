@@ -114,7 +114,28 @@ class RedditDriver(BasePlatformDriver):
                     await comment_box.click()
 
                 await page.wait_for_timeout(500)
-                await comment_box.type(text, delay=30)
+                # Use clipboard paste for reliability with Lexical editor
+                # (type() with delay can timeout on long text)
+                await page.evaluate(
+                    """(text) => {
+                        const el = document.activeElement;
+                        // Use execCommand for Lexical compatibility
+                        const dt = new DataTransfer();
+                        dt.setData('text/plain', text);
+                        el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true }));
+                    }""",
+                    text,
+                )
+                await page.wait_for_timeout(1000)
+                # Fallback: if clipboard paste didn't work, type it in chunks
+                content_check = await comment_box.inner_text()
+                if not content_check.strip():
+                    # Type in smaller chunks to avoid timeout
+                    chunk_size = 200
+                    for i in range(0, len(text), chunk_size):
+                        chunk = text[i:i+chunk_size]
+                        await comment_box.type(chunk, delay=5)
+                        await page.wait_for_timeout(200)
                 await page.wait_for_timeout(500)
 
                 # Submit the comment
