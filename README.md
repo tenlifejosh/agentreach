@@ -289,6 +289,16 @@ Need cloud session sync, team vaults, or custom platform drivers?
 
 ---
 
+## 🦞 The Claw Ecosystem
+
+AgentReach is part of the Ten Life Creatives open-source toolkit for AI builders:
+
+- **[ClawList](https://github.com/tenlifejosh/clawlist)** — AI-powered task management for OpenClaw
+- **[ClawRadar](https://github.com/tenlifejosh/clawradar)** — Real-time trend monitoring
+- **[ClawLaws](https://github.com/tenlifejosh/clawlaws)** — Operating constitution for your AI agent
+
+---
+
 ## License
 
 MIT © Ten Life Creatives — Joshua Noreen
