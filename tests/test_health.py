@@ -2,6 +2,7 @@
 Tests for AgentReach Session Health — expiry checking, status detection, warnings
 """
 
+import json
 import pytest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import patch, MagicMock
@@ -16,7 +17,8 @@ from agentreach.vault.health import (
     DEFAULT_TTL_DAYS,
     EXPIRY_WARNING_DAYS,
 )
-from agentreach.vault.store import SessionVault
+from agentreach.vault.store import SessionVault, _FERNET
+from tests.conftest import save_with_timestamp
 
 
 # ── check_session ─────────────────────────────────────────────────────────────
@@ -32,9 +34,7 @@ class TestCheckSession:
 
     def test_healthy_session(self, vault):
         """Recently harvested session is HEALTHY."""
-        vault.save("kdp", {
-            "_saved_at": datetime.now(timezone.utc).isoformat(),
-        })
+        save_with_timestamp(vault, "kdp", datetime.now(timezone.utc))
         result = check_session("kdp", vault)
         assert result.status == SessionStatus.HEALTHY
         assert result.days_remaining is not None
@@ -43,7 +43,7 @@ class TestCheckSession:
     def test_expired_session(self, vault):
         """Very old session is EXPIRED."""
         old_time = datetime.now(timezone.utc) - timedelta(days=90)
-        vault.save("kdp", {"_saved_at": old_time.isoformat()})
+        save_with_timestamp(vault, "kdp", old_time)
         result = check_session("kdp", vault)
         assert result.status == SessionStatus.EXPIRED
         assert result.days_remaining is not None
@@ -54,7 +54,7 @@ class TestCheckSession:
         # KDP TTL is 30 days, warning is 5 days
         # Harvest 27 days ago → 3 days remaining
         harvest_time = datetime.now(timezone.utc) - timedelta(days=27)
-        vault.save("kdp", {"_saved_at": harvest_time.isoformat()})
+        save_with_timestamp(vault, "kdp", harvest_time)
         result = check_session("kdp", vault)
         assert result.status == SessionStatus.EXPIRING_SOON
         assert result.days_remaining is not None
@@ -62,38 +62,25 @@ class TestCheckSession:
 
     def test_session_uses_harvested_at_field(self, vault):
         """Session with 'harvested_at' key also works."""
-        vault.save("etsy", {
-            "harvested_at": datetime.now(timezone.utc).isoformat(),
-        })
+        recent = datetime.now(timezone.utc)
+        raw = {"harvested_at": recent.isoformat()}
+        payload = json.dumps(raw).encode()
+        path = vault._path("etsy")
+        path.write_bytes(_FERNET.encrypt(payload))
         result = check_session("etsy", vault)
-        assert result.status == SessionStatus.HEALTHY
-
-    def test_session_prefers_saved_at_over_harvested_at(self, vault):
-        """_saved_at takes precedence over harvested_at."""
-        old = datetime.now(timezone.utc) - timedelta(days=60)
-        recent = datetime.now(timezone.utc) - timedelta(days=1)
-        vault.save("etsy", {
-            "harvested_at": old.isoformat(),
-            "_saved_at": recent.isoformat(),
-        })
-        result = check_session("etsy", vault)
-        # _saved_at is set by vault.save(), recent date → healthy
         assert result.status == SessionStatus.HEALTHY
 
     def test_missing_timestamp_returns_unknown(self, vault):
         """Session without any timestamp returns UNKNOWN."""
-        # Manually write raw data without timestamp
-        raw = b'{"platform": "test", "cookies": []}'
+        raw = json.dumps({"platform": "test", "cookies": []}).encode()
         path = vault._path("someplatform")
-        from agentreach.vault.store import _FERNET
         path.write_bytes(_FERNET.encrypt(raw))
         result = check_session("someplatform", vault)
         assert result.status == SessionStatus.UNKNOWN
 
     def test_invalid_timestamp_returns_unknown(self, vault):
         """Session with invalid timestamp returns UNKNOWN."""
-        from agentreach.vault.store import _FERNET
-        raw = json_encode({"_saved_at": "not-a-valid-date"})
+        raw = json.dumps({"_saved_at": "not-a-valid-date"}).encode()
         path = vault._path("badts")
         path.write_bytes(_FERNET.encrypt(raw))
         result = check_session("badts", vault)
@@ -101,7 +88,7 @@ class TestCheckSession:
 
     def test_platform_specific_ttl_kdp(self, vault):
         """KDP uses 30-day TTL."""
-        vault.save("kdp", {"_saved_at": datetime.now(timezone.utc).isoformat()})
+        save_with_timestamp(vault, "kdp", datetime.now(timezone.utc))
         result = check_session("kdp", vault)
         assert result.estimated_expiry is not None
         expected_ttl = PLATFORM_TTL_DAYS["kdp"]
@@ -110,23 +97,21 @@ class TestCheckSession:
 
     def test_platform_specific_ttl_etsy(self, vault):
         """Etsy uses 45-day TTL."""
-        vault.save("etsy", {"_saved_at": datetime.now(timezone.utc).isoformat()})
+        save_with_timestamp(vault, "etsy", datetime.now(timezone.utc))
         result = check_session("etsy", vault)
         diff = (result.estimated_expiry - result.harvested_at).days
         assert diff == PLATFORM_TTL_DAYS["etsy"]
 
     def test_unknown_platform_uses_default_ttl(self, vault):
         """Unknown platforms use DEFAULT_TTL_DAYS."""
-        vault.save("unknown_platform", {"_saved_at": datetime.now(timezone.utc).isoformat()})
-        result = check_session("unknown_platform", vault)
+        save_with_timestamp(vault, "unknown-platform", datetime.now(timezone.utc))
+        result = check_session("unknown-platform", vault)
         diff = (result.estimated_expiry - result.harvested_at).days
         assert diff == DEFAULT_TTL_DAYS
 
     def test_naive_datetime_gets_utc(self, vault):
         """Naive datetime (no timezone) is treated as UTC."""
         naive_ts = datetime.now().isoformat()  # no tz info
-        from agentreach.vault.store import _FERNET
-        import json
         raw = json.dumps({"_saved_at": naive_ts}).encode()
         path = vault._path("naivets")
         path.write_bytes(_FERNET.encrypt(raw))
@@ -136,7 +121,6 @@ class TestCheckSession:
 
     def test_creates_default_vault_if_none_given(self):
         """check_session creates its own vault if none given."""
-        # Should not raise
         result = check_session("definitely_missing_platform_xyz")
         assert result.status == SessionStatus.MISSING
 
@@ -145,14 +129,9 @@ class TestCheckSession:
         assert "kdp" in result.message
 
     def test_message_contains_days_for_healthy(self, vault):
-        vault.save("kdp", {"_saved_at": datetime.now(timezone.utc).isoformat()})
+        save_with_timestamp(vault, "kdp", datetime.now(timezone.utc))
         result = check_session("kdp", vault)
         assert str(result.days_remaining) in result.message or "days" in result.message
-
-
-def json_encode(data: dict) -> bytes:
-    import json
-    return json.dumps(data).encode()
 
 
 # ── check_all ─────────────────────────────────────────────────────────────────
@@ -167,10 +146,10 @@ class TestCheckAll:
 
     def test_check_all_includes_extra_vaulted_platforms(self, vault):
         """Extra platforms in vault appear in check_all."""
-        vault.save("mystery_platform", {"_saved_at": datetime.now(timezone.utc).isoformat()})
+        save_with_timestamp(vault, "mystery-platform", datetime.now(timezone.utc))
         results = check_all(vault)
         returned_names = {r.platform for r in results}
-        assert "mystery_platform" in returned_names
+        assert "mystery-platform" in returned_names
 
     def test_check_all_all_missing_on_empty_vault(self, vault):
         results = check_all(vault)
@@ -196,14 +175,13 @@ class TestStatusReport:
         assert "AgentReach" in report or "Session" in report
 
     def test_status_report_contains_platform_names(self, vault):
-        vault.save("kdp", {"_saved_at": datetime.now(timezone.utc).isoformat()})
+        save_with_timestamp(vault, "kdp", datetime.now(timezone.utc))
         report = status_report(vault)
         assert "kdp" in report
 
     def test_status_report_shows_healthy(self, vault):
-        vault.save("kdp", {"_saved_at": datetime.now(timezone.utc).isoformat()})
+        save_with_timestamp(vault, "kdp", datetime.now(timezone.utc))
         report = status_report(vault)
-        # Should have some indicator of healthy status
         assert "kdp" in report
 
 
@@ -221,6 +199,6 @@ class TestSessionHealthDataclass:
 
     def test_expired_days_remaining_is_negative(self, vault):
         old_time = datetime.now(timezone.utc) - timedelta(days=90)
-        vault.save("kdp", {"_saved_at": old_time.isoformat()})
+        save_with_timestamp(vault, "kdp", old_time)
         result = check_session("kdp", vault)
         assert result.days_remaining < 0

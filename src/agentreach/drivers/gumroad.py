@@ -106,16 +106,27 @@ class GumroadDriver(BasePlatformDriver):
                 if resp.status_code != 200:
                     return False
                 data = resp.json()
-                # Store the seller subdomain so we never have to hardcode it
-                user = data.get("user", {})
-                subdomain = user.get("profile_url", "").split("gumroad.com/")[-1].strip("/")
+                if not isinstance(data, dict):
+                    logger.warning("Gumroad verify_session returned non-dict JSON payload: %r", type(data))
+                    return True
+
+                # Store the seller subdomain so we never have to hardcode it.
+                user = data.get("user") if isinstance(data.get("user"), dict) else {}
+                profile_url = user.get("profile_url") or user.get("url") or ""
+                subdomain = ""
+                if isinstance(profile_url, str) and "gumroad.com/" in profile_url:
+                    subdomain = profile_url.split("gumroad.com/")[-1].strip("/")
+
                 if subdomain:
                     try:
                         existing = self.vault.load("gumroad") or {}
                     except Exception:
                         existing = {}
-                    existing["seller_subdomain"] = subdomain
-                    self.vault.save("gumroad", existing)
+                    try:
+                        existing["seller_subdomain"] = subdomain
+                        self.vault.save("gumroad", existing)
+                    except Exception as exc:
+                        logger.warning("Failed to persist Gumroad seller subdomain %r: %s", subdomain, exc)
                 return True
         except Exception as exc:
             logger.error("Gumroad verify_session failed: %s", exc)
@@ -244,8 +255,8 @@ class GumroadDriver(BasePlatformDriver):
                         share_link = page.locator('a[href*="gumroad.com/l/"]').first
                         if await share_link.count() > 0:
                             gumroad_url = await share_link.get_attribute("href")
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug("Could not read Gumroad share link from page: %s", exc)
 
                     # Fallback: construct from seller subdomain (loaded from API during verify_session)
                     if not gumroad_url:

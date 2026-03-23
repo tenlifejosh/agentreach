@@ -10,7 +10,23 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from agentreach.vault.store import SessionVault
+from agentreach.vault.store import SessionVault, _FERNET
+
+
+# ── Vault Helper ───────────────────────────────────────────────────────────────
+
+def save_with_timestamp(vault: SessionVault, platform: str, harvested_at: datetime, extra: dict = None):
+    """
+    Save a session with a SPECIFIC harvested_at timestamp, bypassing vault.save()'s
+    auto-override of _saved_at. Needed to create expired/expiring session fixtures.
+    """
+    data = extra or {}
+    data = {**data, "platform": platform, "_saved_at": harvested_at.isoformat()}
+    payload = json.dumps(data).encode()
+    encrypted = _FERNET.encrypt(payload)
+    path = vault._path(platform)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(encrypted)
 
 
 # ── Vault Fixtures ─────────────────────────────────────────────────────────────
@@ -43,9 +59,7 @@ def vault_with_kdp(vault):
 def vault_with_expired_kdp(vault):
     """Vault pre-loaded with an expired KDP session (harvested 60 days ago)."""
     old_time = datetime.now(timezone.utc) - timedelta(days=60)
-    vault.save("kdp", {
-        "platform": "kdp",
-        "_saved_at": old_time.isoformat(),
+    save_with_timestamp(vault, "kdp", old_time, {
         "cookies": [{"name": "session", "value": "old123", "domain": ".amazon.com"}],
     })
     return vault
@@ -53,30 +67,24 @@ def vault_with_expired_kdp(vault):
 
 @pytest.fixture
 def vault_with_expiring_kdp(vault):
-    """Vault pre-loaded with a soon-to-expire KDP session (harvested 27 days ago → 3 days left)."""
+    """Vault pre-loaded with a soon-to-expire KDP session (27 days old → 3 days left)."""
     harvest_time = datetime.now(timezone.utc) - timedelta(days=27)
-    vault.save("kdp", {
-        "platform": "kdp",
-        "_saved_at": harvest_time.isoformat(),
+    save_with_timestamp(vault, "kdp", harvest_time, {
         "cookies": [{"name": "session", "value": "expiring123", "domain": ".amazon.com"}],
     })
     return vault
 
 
 @pytest.fixture
-def session_data_factory():
-    """Factory for creating session data dicts."""
+def session_data_factory(vault):
+    """Factory for creating session data with correct timestamps."""
     def _make(platform="kdp", days_ago=1, extra=None):
         harvest_time = datetime.now(timezone.utc) - timedelta(days=days_ago)
-        data = {
-            "platform": platform,
-            "_saved_at": harvest_time.isoformat(),
-            "cookies": [{"name": "session", "value": "test_token", "domain": f".{platform}.com"}],
-            "storage_state": {"cookies": [], "origins": []},
-        }
-        if extra:
-            data.update(extra)
-        return data
+        extra_data = extra or {}
+        extra_data["cookies"] = [{"name": "session", "value": "test_token", "domain": f".{platform}.com"}]
+        extra_data["storage_state"] = {"cookies": [], "origins": []}
+        save_with_timestamp(vault, platform, harvest_time, extra_data)
+        return vault.load(platform)
     return _make
 
 
@@ -146,10 +154,10 @@ def all_platforms():
 
 
 @pytest.fixture
-def vault_all_platforms(vault, all_platforms, session_data_factory):
+def vault_all_platforms(vault, all_platforms):
     """Vault pre-loaded with healthy sessions for all platforms."""
     for platform in all_platforms:
-        vault.save(platform, session_data_factory(platform=platform))
+        vault.save(platform, {"platform": platform})
     return vault
 
 
@@ -175,7 +183,6 @@ def sample_cover_pdf(tmp_path):
 def sample_image(tmp_path):
     """A fake PNG image file for upload testing."""
     img_path = tmp_path / "test_image.png"
-    # Minimal valid PNG header
     img_path.write_bytes(
         b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01"
         b"\x00\x00\x00\x01\x08\x02\x00\x00\x00\x90wS\xde\x00\x00"

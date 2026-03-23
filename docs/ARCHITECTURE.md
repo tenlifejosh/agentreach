@@ -260,7 +260,7 @@ TikTok is in `PLATFORM_META` for display purposes but is not in `DRIVERS`. Calli
 #### Gumroad (`gumroad.py`)
 - **Auth:** API access token (stored in vault via `set-token`)
 - **Mechanism:** Gumroad REST API for sales/products; browser automation for product creation
-- **Known bug:** Product URL returned by `create_product()` is hardcoded to `tenlifejosh.gumroad.com/l/...` instead of being extracted from the page. Multi-user deployments will get wrong URLs.
+- **Note:** Product URL is dynamically extracted from the page after creation. Falls back to the seller's subdomain (fetched from Gumroad API during `verify_session()` and stored in vault) — never hardcoded.
 - **Key methods:** `check_sales(after=None)`, `list_products()`, `publish_product(product)`
 
 #### Pinterest (`pinterest.py`)
@@ -367,10 +367,13 @@ Current coverage: vault only (4 tests). Driver tests require mocked Playwright c
 
 ## Known Issues
 
-See the [codebase audit](../research/codebase-audit.md) for the full list. The critical ones:
+The critical bugs identified in the original audit have been fixed:
 
-1. **Uploader strategy 2** — sends literal `"placeholder"` as file content. Broken.
-2. **Gumroad seller URL** — hardcoded to `tenlifejosh.gumroad.com`. Wrong for any other user.
-3. **Vault path sanitization** — `_path()` doesn't sanitize against path traversal (spaces only).
-4. **Etsy upload responses** — image/digital file upload HTTP responses are never checked.
-5. **Vault load() swallows errors** — decryption failure looks identical to "no session found".
+1. **Uploader strategy 2** ✅ — Now sends real base64-encoded file bytes injected as a proper `Blob` with the correct MIME type.
+2. **Gumroad seller URL** ✅ — Dynamically extracted from page after creation; falls back to seller subdomain fetched from API during `verify_session()` and stored in vault.
+3. **Vault path sanitization** ✅ — `_path()` rejects any traversal characters (`/`, `\`, `.`, null) outright with a clear `ValueError`.
+4. **Etsy upload responses** ✅ — Every image and digital file upload response is checked; failures are collected and reported in the `UploadResult.message`.
+5. **Vault load() swallows errors** ✅ — `VaultCorruptedError` is raised with a descriptive message distinguishing decryption failure from missing session.
+6. **Encryption key hardening** ✅ — New installs use a cryptographically random 32-byte salt. Legacy installs derive the same MAC-based salt for backward compatibility, then persist it.
+
+See [CHANGELOG.md](../CHANGELOG.md) for full fix history.

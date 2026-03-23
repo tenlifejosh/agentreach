@@ -264,11 +264,12 @@ class EtsyDriver(BasePlatformDriver):
                     timeout=15,
                 )
                 if activate_resp.status_code not in (200, 201):
-                    logger.warning(
-                        "Etsy listing activation returned %d: %s",
-                        activate_resp.status_code,
-                        activate_resp.text[:200],
+                    err_msg = (
+                        f"Listing activation failed: {activate_resp.status_code} "
+                        f"{activate_resp.text[:200]}"
                     )
+                    logger.error("Etsy activation error: %s", err_msg)
+                    upload_errors.append(err_msg)
 
         except httpx.HTTPStatusError as exc:
             return UploadResult(
@@ -287,17 +288,13 @@ class EtsyDriver(BasePlatformDriver):
         listing_url = f"https://www.etsy.com/listing/{listing_id}"
 
         if upload_errors:
-            # Listing was created but some uploads failed — partial success
             return UploadResult(
-                success=True,
+                success=False,
                 platform="etsy",
                 product_id=str(listing_id),
                 url=listing_url,
-                message=(
-                    f"'{listing.title}' created on Etsy at {listing_url} "
-                    f"BUT {len(upload_errors)} upload(s) failed:\n"
-                    + "\n".join(f"  - {e}" for e in upload_errors)
-                ),
+                message=f"'{listing.title}' created on Etsy at {listing_url} but upload verification failed",
+                error="\n".join(upload_errors),
             )
 
         return UploadResult(

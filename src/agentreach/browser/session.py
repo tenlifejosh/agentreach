@@ -4,20 +4,18 @@ Loads saved encrypted sessions into a headless Playwright context.
 The core engine that makes autonomous operation possible.
 """
 
-import asyncio
 from contextlib import asynccontextmanager
 from typing import Optional, AsyncGenerator
 
-from playwright.async_api import (
-    async_playwright,
-    Browser,
-    BrowserContext,
-    Page,
-    Playwright,
-)
+from playwright.async_api import Browser, BrowserContext, Page, async_playwright
 
-from ..vault.store import SessionVault
-from ..vault.health import check_session, SessionStatus
+from ..vault.health import SessionStatus, check_session
+from ..vault.store import SessionVault, VaultCorruptedError
+
+try:
+    from playwright_stealth import stealth_async
+except ImportError:  # pragma: no cover - optional dependency fallback only
+    stealth_async = None
 
 
 class SessionNotFoundError(Exception):
@@ -48,7 +46,6 @@ async def platform_context(
 
     platform = platform.lower()
 
-    # Health check
     if check_health:
         health = check_session(platform, vault)
         if health.status == SessionStatus.MISSING:
@@ -59,24 +56,27 @@ async def platform_context(
             raise SessionExpiredError(
                 f"Session for '{platform}' has expired. Run: agentreach harvest {platform}"
             )
+        if health.status == SessionStatus.UNKNOWN:
+            raise SessionNotFoundError(health.message)
 
-    # Load session data
-    session_data = vault.load(platform)
+    try:
+        session_data = vault.load(platform)
+    except VaultCorruptedError as exc:
+        raise SessionNotFoundError(str(exc)) from exc
+
     if not session_data:
         raise SessionNotFoundError(f"Failed to load session for '{platform}'")
 
     storage_state = session_data.get("storage_state", {})
     cookies = session_data.get("cookies", [])
 
-    # If storage_state has cookies embedded, use that directly
-    # Otherwise build it from the cookies list
     if not storage_state.get("cookies") and cookies:
         storage_state = {"cookies": cookies, "origins": []}
 
     async with async_playwright() as p:
         browser: Browser = await p.chromium.launch(
             headless=headless,
-            args=["--no-sandbox", "--disable-blink-features=AutomationControlled"],
+            args=["--disable-blink-features=AutomationControlled"],
         )
 
         context: BrowserContext = await browser.new_context(
@@ -89,18 +89,13 @@ async def platform_context(
             ),
         )
 
-        # Add cookies directly if storage_state didn't capture them
         if cookies and not storage_state.get("cookies"):
             await context.add_cookies(cookies)
 
         page: Page = await context.new_page()
 
-        # Apply stealth patches to avoid bot detection
-        try:
-            from playwright_stealth import stealth_async
+        if stealth_async is not None:
             await stealth_async(page)
-        except ImportError:
-            pass  # stealth optional
 
         try:
             yield context, page

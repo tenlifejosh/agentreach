@@ -17,13 +17,17 @@ Selectors verified against Pinterest pin creation tool DOM (March 2026):
 """
 
 import asyncio
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from ..vault.store import SessionVault
 from ..browser.session import platform_context
+from ..vault.store import SessionVault
 from .base import BasePlatformDriver, UploadResult
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -46,7 +50,8 @@ class PinterestDriver(BasePlatformDriver):
             async with platform_context("pinterest", self.vault) as (ctx, page):
                 await page.goto("https://www.pinterest.com/", wait_until="domcontentloaded", timeout=20000)
                 return "login" not in page.url
-        except Exception:
+        except Exception as exc:
+            logger.error("Pinterest verify_session failed: %s", exc)
             return False
 
     async def _open_board_dropdown(self, page) -> bool:
@@ -73,7 +78,6 @@ class PinterestDriver(BasePlatformDriver):
         await create_btn.click()
         await page.wait_for_timeout(1500)
 
-        # Fill board name
         name_input = page.locator('#boardEditName').first
         if await name_input.count() == 0:
             return False
@@ -81,7 +85,6 @@ class PinterestDriver(BasePlatformDriver):
         await name_input.fill(board_name)
         await page.wait_for_timeout(300)
 
-        # Submit
         submit_btn = page.locator('[data-test-id="board-form-submit-button"]').first
         if await submit_btn.count() == 0:
             return False
@@ -99,20 +102,16 @@ class PinterestDriver(BasePlatformDriver):
         if not opened:
             return False
 
-        # Check if board picker flyout is visible and search for board
-        # Look for board in the list by text
         board_option = page.locator(
             f'[data-test-id="board-row-{board_name}"], '
             f'[title="{board_name}"]'
         ).first
 
         if await board_option.count() == 0:
-            # Try searching via the search field
             search_field = page.locator('#pickerSearchField').first
             if await search_field.count() > 0:
                 await search_field.fill(board_name)
                 await page.wait_for_timeout(800)
-                # Look again after search
                 board_option = page.locator(
                     f'div:has-text("{board_name}")[role="option"], '
                     f'li:has-text("{board_name}")'
@@ -123,18 +122,13 @@ class PinterestDriver(BasePlatformDriver):
             await page.wait_for_timeout(500)
             return True
 
-        # Check if "No boards found" — create the board
-        no_boards = page.locator('[data-test-id="search-boards-field-container"]:has-text("No boards found")').first
         create_board_btn = page.locator('[data-test-id="create-board-button"]').first
-
         if await create_board_btn.count() > 0:
             created = await self._create_board_in_flyout(page, board_name)
             if created:
-                # After board creation, re-open the dropdown to select it
                 await page.wait_for_timeout(1000)
                 opened2 = await self._open_board_dropdown(page)
                 if opened2:
-                    # Board should now appear
                     await page.wait_for_timeout(800)
                     board_option2 = page.locator(
                         f'[title="{board_name}"], '
@@ -144,15 +138,13 @@ class PinterestDriver(BasePlatformDriver):
                         await board_option2.click()
                         await page.wait_for_timeout(500)
                         return True
-                    # Try clicking first available board option
                     first_board = page.locator('[data-test-id^="board-row-"]').first
                     if await first_board.count() > 0:
                         await first_board.click()
                         await page.wait_for_timeout(500)
                         return True
-                return created  # board was created even if selection is unclear
+                return created
 
-        # Escape and continue
         await page.keyboard.press("Escape")
         return False
 
@@ -172,30 +164,28 @@ class PinterestDriver(BasePlatformDriver):
                 await page.goto(self.CREATE_PIN_URL, wait_until="networkidle", timeout=30000)
                 await page.wait_for_timeout(2000)
 
-                # Upload the pin image via the storyboard upload input
                 file_input = page.locator('#storyboard-upload-input').first
                 if await file_input.count() == 0:
                     return UploadResult(
-                        success=False, platform="pinterest", error="File upload input (#storyboard-upload-input) not found"
+                        success=False,
+                        platform="pinterest",
+                        error="File upload input (#storyboard-upload-input) not found",
                     )
 
                 await file_input.set_input_files(str(image_path))
                 await page.wait_for_timeout(5000)
 
-                # Wait for editor panel to be ready
                 try:
                     await page.wait_for_selector('#storyboard-selector-title', timeout=10000)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("Pinterest editor title selector did not appear in time: %s", exc)
 
-                # Fill title
                 title_input = page.locator('#storyboard-selector-title').first
                 if await title_input.count() > 0:
                     await title_input.clear()
                     await title_input.fill(pin.title)
                     await page.wait_for_timeout(300)
 
-                # Fill description (contenteditable div - use keyboard type)
                 desc_div = page.locator('[aria-label="Add a detailed description"]').first
                 if await desc_div.count() > 0:
                     await desc_div.click()
@@ -204,19 +194,15 @@ class PinterestDriver(BasePlatformDriver):
                     await page.keyboard.type(pin.description)
                     await page.wait_for_timeout(300)
 
-                # Fill destination link
                 if pin.link:
                     link_input = page.locator('#WebsiteField').first
                     if await link_input.count() > 0:
                         await link_input.fill(pin.link)
                         await page.wait_for_timeout(300)
 
-                # Select/create board
                 board_selected = await self._select_board(page, pin.board_name)
-
                 await page.wait_for_timeout(1000)
 
-                # Click Publish button
                 publish_btn = page.locator('[data-test-id="storyboard-creation-nav-done"]').first
                 if await publish_btn.count() == 0:
                     return UploadResult(
@@ -228,9 +214,7 @@ class PinterestDriver(BasePlatformDriver):
                 await publish_btn.click()
                 await page.wait_for_timeout(5000)
 
-                # Check outcome
                 success_url = page.url
-                # Look for error indicators
                 error_indicator = page.locator('[class*="error"], [data-test-id*="error"]').first
                 error_text = ""
                 if await error_indicator.count() > 0:
@@ -240,20 +224,22 @@ class PinterestDriver(BasePlatformDriver):
                     success=True,
                     platform="pinterest",
                     url=success_url,
-                    message=f"Pin '{pin.title}' published | board_selected={board_selected} | board='{pin.board_name}' | error_check='{error_text[:100]}'",
+                    message=(
+                        f"Pin '{pin.title}' published | board_selected={board_selected} "
+                        f"| board='{pin.board_name}' | error_check='{error_text[:100]}'"
+                    ),
                 )
 
-            except Exception as e:
+            except Exception as exc:
+                logger.error("Pinterest create_pin failed: %s", exc, exc_info=True)
                 return UploadResult(
                     success=False,
                     platform="pinterest",
-                    error=str(e),
+                    error=str(exc),
                 )
 
     async def ensure_board_exists(self, board_name: str) -> bool:
-        """
-        Check if a board exists. Returns True if found.
-        """
+        """Check if a board exists. Returns True if found."""
         async with platform_context("pinterest", self.vault) as (ctx, page):
             try:
                 await page.goto(self.CREATE_PIN_URL, wait_until="networkidle", timeout=30000)
@@ -266,7 +252,8 @@ class PinterestDriver(BasePlatformDriver):
                 exists = await board_option.count() > 0
                 await page.keyboard.press("Escape")
                 return exists
-            except Exception:
+            except Exception as exc:
+                logger.error("Pinterest ensure_board_exists failed for %r: %s", board_name, exc)
                 return False
 
     def post_pin(self, pin: PinterestPin) -> UploadResult:

@@ -15,12 +15,16 @@ Usage:
 """
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import Optional
 
 from ..browser.session import platform_context
 from ..vault.store import SessionVault
 from .base import BasePlatformDriver, UploadResult
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -52,40 +56,31 @@ class RedditDriver(BasePlatformDriver):
                 await page.goto(self.HOME_URL, wait_until="domcontentloaded", timeout=30000)
                 await page.wait_for_timeout(2000)
 
-                # If we're redirected to login, session is invalid
                 if "login" in page.url:
                     return False
 
-                # Check for logged-in indicators
-                # Reddit shows a user avatar/expand button when logged in
-                logged_in = await page.evaluate("""
+                logged_in = await page.evaluate(
+                    """
                     () => {
-                        // Check for user menu button (logged-in state)
                         const userMenu = document.querySelector('[aria-label*="Profile"], #USER_DROPDOWN_ID, [data-testid="user-menu"]');
                         if (userMenu) return true;
-                        // Check for "Log In" button (logged-out state)
                         const loginBtn = document.querySelector('a[href*="/login"]');
                         return !loginBtn;
                     }
-                """)
+                    """
+                )
                 return bool(logged_in)
-        except Exception:
+        except Exception as exc:
+            logger.error("Reddit verify_session failed: %s", exc)
             return False
 
     async def post_comment(self, thread_url: str, text: str) -> UploadResult:
-        """
-        Navigate to a Reddit thread URL and post a comment.
-
-        Args:
-            thread_url: Full URL to the Reddit thread (e.g. https://www.reddit.com/r/...)
-            text: Comment text to post
-        """
+        """Navigate to a Reddit thread URL and post a comment."""
         async with platform_context("reddit", self.vault) as (ctx, page):
             try:
                 await page.goto(thread_url, wait_until="domcontentloaded", timeout=30000)
                 await page.wait_for_timeout(2000)
 
-                # Check we're on a thread page
                 if "reddit.com" not in page.url:
                     return UploadResult(
                         success=False,
@@ -93,8 +88,6 @@ class RedditDriver(BasePlatformDriver):
                         error="Navigation failed — not on Reddit.",
                     )
 
-                # Click on the comment input box
-                # Reddit's comment area uses a contenteditable div
                 comment_box = page.locator(
                     '[data-testid="comment-textarea"], '
                     '[placeholder*="comment"], '
@@ -104,8 +97,8 @@ class RedditDriver(BasePlatformDriver):
                 try:
                     await comment_box.wait_for(timeout=10000)
                     await comment_box.click()
-                except Exception:
-                    # Try clicking the "Add a comment" prompt first
+                except Exception as exc:
+                    logger.debug("Reddit comment box not immediately available: %s", exc)
                     prompt = page.locator('div[data-click-id="text"], button:has-text("comment")').first
                     await prompt.click(timeout=5000)
                     await page.wait_for_timeout(1000)
@@ -114,12 +107,9 @@ class RedditDriver(BasePlatformDriver):
                     await comment_box.click()
 
                 await page.wait_for_timeout(500)
-                # Use clipboard paste for reliability with Lexical editor
-                # (type() with delay can timeout on long text)
                 await page.evaluate(
                     """(text) => {
                         const el = document.activeElement;
-                        // Use execCommand for Lexical compatibility
                         const dt = new DataTransfer();
                         dt.setData('text/plain', text);
                         el.dispatchEvent(new ClipboardEvent('paste', { clipboardData: dt, bubbles: true }));
@@ -127,18 +117,16 @@ class RedditDriver(BasePlatformDriver):
                     text,
                 )
                 await page.wait_for_timeout(1000)
-                # Fallback: if clipboard paste didn't work, type it in chunks
+
                 content_check = await comment_box.inner_text()
                 if not content_check.strip():
-                    # Type in smaller chunks to avoid timeout
                     chunk_size = 200
                     for i in range(0, len(text), chunk_size):
-                        chunk = text[i:i+chunk_size]
+                        chunk = text[i:i + chunk_size]
                         await comment_box.type(chunk, delay=5)
                         await page.wait_for_timeout(200)
                 await page.wait_for_timeout(500)
 
-                # Submit the comment
                 submit_btn = page.locator(
                     'button:has-text("Comment"), '
                     'button[type="submit"]:has-text("Save"), '
@@ -154,23 +142,16 @@ class RedditDriver(BasePlatformDriver):
                     message=f"Comment posted on {thread_url}",
                 )
 
-            except Exception as e:
+            except Exception as exc:
+                logger.error("Reddit post_comment failed: %s", exc, exc_info=True)
                 return UploadResult(
                     success=False,
                     platform="reddit",
-                    error=f"Failed to post comment: {str(e)}\n\nEnsure session is valid: agentreach harvest reddit",
+                    error=f"Failed to post comment: {exc}\n\nEnsure session is valid: agentreach harvest reddit",
                 )
 
     async def create_post(self, subreddit: str, title: str, body: str) -> UploadResult:
-        """
-        Create a new text post in a subreddit.
-
-        Args:
-            subreddit: Subreddit name without r/ prefix (e.g. 'AskReddit')
-            title: Post title
-            body: Post body text
-        """
-        # Normalize subreddit name
+        """Create a new text post in a subreddit."""
         subreddit = subreddit.lstrip("/").lstrip("r/")
         submit_url = f"https://www.reddit.com/r/{subreddit}/submit"
 
@@ -179,7 +160,6 @@ class RedditDriver(BasePlatformDriver):
                 await page.goto(submit_url, wait_until="domcontentloaded", timeout=30000)
                 await page.wait_for_timeout(2000)
 
-                # If redirected to login, session is dead
                 if "login" in page.url:
                     return UploadResult(
                         success=False,
@@ -187,7 +167,6 @@ class RedditDriver(BasePlatformDriver):
                         error="Reddit session expired. Re-harvest: agentreach harvest reddit",
                     )
 
-                # Select "Text" post type if tabs are visible
                 try:
                     text_tab = page.locator(
                         'button:has-text("Text"), '
@@ -196,10 +175,9 @@ class RedditDriver(BasePlatformDriver):
                     ).first
                     await text_tab.click(timeout=5000)
                     await page.wait_for_timeout(500)
-                except Exception:
-                    pass  # Already on text tab or single-type form
+                except Exception as exc:
+                    logger.debug("Reddit text-tab selection skipped/fell back: %s", exc)
 
-                # Fill title
                 title_input = page.locator(
                     'textarea[placeholder*="Title"], '
                     'input[name="title"], '
@@ -210,7 +188,6 @@ class RedditDriver(BasePlatformDriver):
                 await title_input.fill(title)
                 await page.wait_for_timeout(300)
 
-                # Fill body
                 body_area = page.locator(
                     'div[contenteditable="true"][data-contents], '
                     'div[contenteditable="true"].public-DraftEditor-content, '
@@ -221,14 +198,13 @@ class RedditDriver(BasePlatformDriver):
                     await body_area.click()
                     await page.wait_for_timeout(300)
                     await body_area.type(body, delay=20)
-                except Exception:
-                    # Fallback: look for a textarea
+                except Exception as exc:
+                    logger.debug("Reddit rich text body editor unavailable, falling back to textarea: %s", exc)
                     fallback = page.locator('textarea[name="text"], textarea[placeholder*="text"]').first
                     await fallback.fill(body, timeout=5000)
 
                 await page.wait_for_timeout(500)
 
-                # Submit the post
                 submit_btn = page.locator(
                     'button:has-text("Post"), '
                     'button[type="submit"]:not([disabled]), '
@@ -239,7 +215,6 @@ class RedditDriver(BasePlatformDriver):
                 await page.wait_for_timeout(2000)
 
                 post_url = page.url
-
                 return UploadResult(
                     success=True,
                     platform="reddit",
@@ -247,11 +222,12 @@ class RedditDriver(BasePlatformDriver):
                     message=f"Post '{title}' submitted to r/{subreddit}",
                 )
 
-            except Exception as e:
+            except Exception as exc:
+                logger.error("Reddit create_post failed for r/%s: %s", subreddit, exc, exc_info=True)
                 return UploadResult(
                     success=False,
                     platform="reddit",
-                    error=f"Failed to create post: {str(e)}\n\nEnsure session is valid: agentreach harvest reddit",
+                    error=f"Failed to create post: {exc}\n\nEnsure session is valid: agentreach harvest reddit",
                 )
 
     def comment(self, thread_url: str, text: str) -> UploadResult:

@@ -4,11 +4,11 @@ Tests for AgentReach Session Monitor — categorization, alerts, quiet mode
 
 import pytest
 from datetime import datetime, timezone, timedelta
-from io import StringIO
 from unittest.mock import patch
 
 from agentreach.vault.monitor import monitor, _categorize, _print_alerts
 from agentreach.vault.health import SessionHealth, SessionStatus
+from tests.conftest import save_with_timestamp
 
 
 # ── _categorize ───────────────────────────────────────────────────────────────
@@ -72,14 +72,14 @@ class TestMonitor:
         assert len(result["missing"]) > 0
 
     def test_monitor_healthy_sessions_bucketed_correctly(self, vault):
-        vault.save("kdp", {"_saved_at": datetime.now(timezone.utc).isoformat()})
+        save_with_timestamp(vault, "kdp", datetime.now(timezone.utc))
         result = monitor(vault, quiet=True)
         healthy_platforms = [h.platform for h in result["healthy"]]
         assert "kdp" in healthy_platforms
 
     def test_monitor_expired_sessions_bucketed_correctly(self, vault):
         old_time = datetime.now(timezone.utc) - timedelta(days=90)
-        vault.save("kdp", {"_saved_at": old_time.isoformat()})
+        save_with_timestamp(vault, "kdp", old_time)
         result = monitor(vault, quiet=True)
         expired_platforms = [h.platform for h in result["expired"]]
         assert "kdp" in expired_platforms
@@ -94,19 +94,17 @@ class TestMonitor:
         captured = capsys.readouterr()
         assert len(captured.out) > 0
 
-    def test_monitor_all_healthy_prints_ok_message(self, capsys):
+    def test_monitor_all_healthy_prints_ok_message(self, capsys, tmp_path):
         """When all sessions healthy, prints success message."""
         from agentreach.vault.health import PLATFORM_TTL_DAYS
         from agentreach.vault.store import SessionVault
-        import tempfile
-        with tempfile.TemporaryDirectory() as d:
-            from pathlib import Path
-            vault = SessionVault(vault_dir=Path(d))
-            for p in PLATFORM_TTL_DAYS.keys():
-                vault.save(p, {"_saved_at": datetime.now(timezone.utc).isoformat()})
-            monitor(vault, quiet=False)
-            captured = capsys.readouterr()
-            assert "healthy" in captured.out.lower() or "✅" in captured.out
+
+        new_vault = SessionVault(vault_dir=tmp_path)
+        for p in PLATFORM_TTL_DAYS.keys():
+            save_with_timestamp(new_vault, p, datetime.now(timezone.utc))
+        monitor(new_vault, quiet=False)
+        captured = capsys.readouterr()
+        assert "healthy" in captured.out.lower() or "✅" in captured.out
 
 
 # ── _print_alerts ─────────────────────────────────────────────────────────────

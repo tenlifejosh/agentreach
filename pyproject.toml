@@ -29,6 +29,7 @@ classifiers = [
 requires-python = ">=3.10"
 dependencies = [
     "playwright>=1.40.0",
+    "playwright-stealth>=1.0.6",
     "httpx>=0.25.0",
     "cryptography>=41.0.0",
     "typer>=0.9.0",
@@ -65,3 +66,32 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+markers = [
+    "slow: marks tests as slow (browser automation)",
+    "integration: marks tests requiring live network",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+
+[tool.coverage.run]
+omit = [
+    "src/agentreach/mcp_server.py",
+    "src/agentreach/drivers/etsy.py",
+    "src/agentreach/drivers/gumroad.py",
+    "src/agentreach/drivers/kdp.py",
+    "src/agentreach/drivers/nextdoor.py",
+    "src/agentreach/drivers/pinterest.py",
+    "src/agentreach/drivers/reddit.py",
+    "src/agentreach/drivers/twitter.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false

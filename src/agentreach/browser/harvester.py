@@ -96,9 +96,11 @@ async def harvest_session(
 
     async with async_playwright() as p:
         # Launch VISIBLE browser (not headless) so human can interact
+        # Note: --no-sandbox is NOT used here; it disables Chromium's security
+        # sandbox and is not needed for local desktop use.
         browser = await p.chromium.launch(
             headless=False,
-            args=["--no-sandbox", "--start-maximized"],
+            args=["--start-maximized"],
         )
         context = await browser.new_context(
             viewport={"width": 1280, "height": 900},
@@ -171,4 +173,3 @@ async def harvest_session(
 def harvest(platform: str, vault: Optional[SessionVault] = None, timeout: int = HARVEST_TIMEOUT):
     """Synchronous wrapper for harvest_session."""
     return asyncio.run(harvest_session(platform, vault, timeout))
-# TikTok added

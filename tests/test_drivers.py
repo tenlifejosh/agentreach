@@ -11,6 +11,7 @@ from agentreach.drivers.base import BasePlatformDriver, UploadResult
 from agentreach.drivers import get_driver, DRIVERS
 from agentreach.vault.store import SessionVault
 from agentreach.vault.health import SessionStatus
+from tests.conftest import save_with_timestamp
 
 
 # ── UploadResult ───────────────────────────────────────────────────────────────
@@ -70,7 +71,7 @@ class TestBasePlatformDriver:
     def test_require_valid_session_exits_if_expired(self, vault, capsys):
         """require_valid_session calls sys.exit when expired."""
         old_time = datetime.now(timezone.utc) - timedelta(days=90)
-        vault.save("test_platform", {"_saved_at": old_time.isoformat()})
+        save_with_timestamp(vault, "test_platform", old_time)
         driver = ConcretePlatformDriver(vault=vault)
         with pytest.raises(SystemExit) as exc_info:
             driver.require_valid_session()
@@ -85,13 +86,12 @@ class TestBasePlatformDriver:
 
     def test_require_valid_session_warns_if_expiring(self, vault, capsys):
         """require_valid_session warns but doesn't exit if expiring soon."""
+        # test_platform is unknown -> DEFAULT_TTL_DAYS = 30, so 27 days ago => 3 days left
         harvest_time = datetime.now(timezone.utc) - timedelta(days=27)
-        vault.save("test_platform", {"_saved_at": harvest_time.isoformat()})
+        save_with_timestamp(vault, "test_platform", harvest_time)
         driver = ConcretePlatformDriver(vault=vault)
-        # Should not raise SystemExit
         driver.require_valid_session()
         captured = capsys.readouterr()
-        # Should have printed a warning
         assert "expire" in captured.out.lower() or "⚠️" in captured.out
 
     def test_require_valid_session_no_output_if_healthy(self, vault, capsys):
@@ -196,7 +196,8 @@ class TestKDPDriver:
         details = KDPBookDetails(title="My Book")
         assert details.title == "My Book"
         assert details.subtitle == ""
-        assert details.author == "Joshua Noreen"
+        assert details.author == ""
+        assert details.publisher == ""
         assert details.price_usd == 12.99
         assert details.keywords == []
         assert details.language == "English"
@@ -276,14 +277,18 @@ class TestGumroadDriver:
 
     @pytest.mark.asyncio
     async def test_verify_session_with_valid_token(self, vault):
-        """verify_session returns True when API returns 200."""
+        """verify_session returns True when API returns 200 and stores seller subdomain."""
         from agentreach.drivers.gumroad import GumroadDriver
-        import httpx
 
         driver = GumroadDriver(access_token="valid_token", vault=vault)
 
         mock_response = MagicMock()
         mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "user": {
+                "profile_url": "https://gumroad.com/tester"
+            }
+        }
 
         with patch("httpx.AsyncClient") as MockClient:
             mock_client = AsyncMock()
@@ -294,6 +299,8 @@ class TestGumroadDriver:
 
             result = await driver.verify_session()
             assert result is True
+            session = vault.load("gumroad")
+            assert session.get("seller_subdomain") == "tester"
 
     @pytest.mark.asyncio
     async def test_verify_session_with_invalid_token(self, vault):
@@ -404,6 +411,7 @@ class TestRedditDriver:
         assert driver.platform_name == "reddit"
 
     @pytest.mark.asyncio
+    @pytest.mark.filterwarnings("ignore::RuntimeWarning")
     async def test_post_comment_no_session(self, vault):
         """post_comment handles missing session gracefully via platform_context raising."""
         from agentreach.drivers.reddit import RedditDriver
@@ -420,6 +428,13 @@ class TestRedditDriver:
             mock_page.goto = AsyncMock()
             mock_page.wait_for_timeout = AsyncMock()
             mock_page.evaluate = AsyncMock(return_value="login")  # simulate redirect to login
+            # Ensure locator chain is fully async to avoid unawaited coroutine warnings
+            mock_locator = AsyncMock()
+            mock_locator.first = AsyncMock()
+            mock_locator.first.wait_for = AsyncMock(side_effect=Exception("no comment box"))
+            mock_locator.first.inner_text = AsyncMock(return_value="")
+            mock_locator.first.type = AsyncMock()
+            mock_page.locator = MagicMock(return_value=mock_locator)
             yield AsyncMock(), mock_page
 
         with patch("agentreach.drivers.reddit.platform_context", mock_platform_context):

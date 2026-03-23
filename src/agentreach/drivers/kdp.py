@@ -81,7 +81,8 @@ class KDPDriver(BasePlatformDriver):
                 if "signin" in page.url or "title-setup" not in page.url:
                     return False
                 return True
-        except Exception:
+        except Exception as exc:
+            logger.error("KDP verify_session failed: %s", exc)
             return False
 
     async def verify_bookshelf_session(self) -> bool:
@@ -90,7 +91,8 @@ class KDPDriver(BasePlatformDriver):
             async with platform_context("kdp", self.vault) as (ctx, page):
                 await page.goto(self.BOOKSHELF_URL, wait_until="domcontentloaded", timeout=30000)
                 return "signin" not in page.url and "bookshelf" in page.url
-        except Exception:
+        except Exception as exc:
+            logger.error("KDP verify_bookshelf_session failed: %s", exc)
             return False
 
     async def get_bookshelf(self) -> list[dict]:
@@ -107,7 +109,8 @@ class KDPDriver(BasePlatformDriver):
                     title = await title_el.inner_text() if title_el else "Unknown"
                     status = await status_el.inner_text() if status_el else "Unknown"
                     books.append({"title": title.strip(), "status": status.strip()})
-                except Exception:
+                except Exception as exc:
+                    logger.debug("KDP: error parsing bookshelf row (skipping): %s", exc)
                     continue
 
         return books
@@ -141,8 +144,10 @@ class KDPDriver(BasePlatformDriver):
             if result == 'ckeditor_ok':
                 await page.wait_for_timeout(500)
                 return True
-        except Exception:
-            pass
+            elif result and result.startswith('ckeditor_error:'):
+                logger.debug("KDP CKEditor JS error: %s", result)
+        except Exception as exc:
+            logger.debug("KDP CKEditor strategy 1 failed: %s", exc)
 
         # Strategy 2: Set hidden backing field directly and dispatch change event
         try:
@@ -166,9 +171,10 @@ class KDPDriver(BasePlatformDriver):
             if result:
                 await page.wait_for_timeout(300)
                 return True
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("KDP description strategy 2 (hidden field) failed: %s", exc)
 
+        logger.warning("KDP: could not fill description via CKEditor or hidden field")
         return False
 
     # Confirmed element IDs for KDP content step
@@ -193,9 +199,20 @@ class KDPDriver(BasePlatformDriver):
             await page.locator('#data-print-book-subtitle').fill(details.subtitle)
 
         # Author — use exact IDs discovered via debug
-        author_parts = details.author.split(" ", 1)
-        first_name = author_parts[0]
-        last_name = author_parts[1] if len(author_parts) > 1 else ""
+        # Handle single-name authors, multi-word names, and empty author gracefully
+        author_str = details.author.strip()
+        if author_str:
+            parts = author_str.split()
+            if len(parts) == 1:
+                first_name = author_str
+                last_name = ""
+            else:
+                # First word = first name, everything else = last name
+                first_name = parts[0]
+                last_name = " ".join(parts[1:])
+        else:
+            first_name = ""
+            last_name = ""
         await page.locator('#data-print-book-primary-author-first-name').fill(first_name)
         await page.locator('#data-print-book-primary-author-last-name').fill(last_name)
 
@@ -209,15 +226,15 @@ class KDPDriver(BasePlatformDriver):
                 kw_selector = f'#data-print-book-keywords-{i}'
                 try:
                     await page.locator(kw_selector).fill(kw, timeout=3000)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.debug("KDP keyword %d fill failed: %s", i, exc)
 
         # Publishing rights — must click before categories button enables
         try:
             await page.locator('#non-public-domain').click(timeout=5000)
             await page.wait_for_timeout(500)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("KDP non-public-domain click failed: %s", exc)
 
         # Categories — use JavaScript to interact with React-controlled selects
         if details.categories:
@@ -279,8 +296,8 @@ class KDPDriver(BasePlatformDriver):
                     await page.wait_for_timeout(1000)
 
             except Exception as e:
-                # Categories non-fatal — continue without them
-                pass
+                # Categories non-fatal — continue without them but log the failure
+                logger.warning("KDP category fill failed (non-fatal): %s", e)
 
     async def _upload_content(
         self,
@@ -296,8 +313,8 @@ class KDPDriver(BasePlatformDriver):
         try:
             trim_select = page.locator('[id*="trim-size"], select[name*="trim"]').first
             await trim_select.select_option(label="6 x 9 in", timeout=5000)
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("KDP trim size selection failed (non-fatal): %s", exc)
 
         # Upload manuscript — look for dedicated file input by known ID first
         manuscript_uploaded = False
@@ -306,8 +323,8 @@ class KDPDriver(BasePlatformDriver):
             if await ms_input.count() > 0:
                 await ms_input.set_input_files(str(manuscript_path), timeout=10000)
                 manuscript_uploaded = True
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("KDP manuscript direct input failed, falling back to upload_file: %s", exc)
 
         if not manuscript_uploaded:
             manuscript_uploaded = await upload_file(
@@ -332,8 +349,8 @@ class KDPDriver(BasePlatformDriver):
             if await cv_input.count() > 0:
                 await cv_input.set_input_files(str(cover_path), timeout=10000)
                 cover_uploaded = True
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("KDP cover direct input failed, falling back to upload_file: %s", exc)
 
         if not cover_uploaded:
             cover_uploaded = await upload_file(
@@ -439,8 +456,8 @@ class KDPDriver(BasePlatformDriver):
                 price_input = page.locator('[id*="price-usd"], input[placeholder*="0.00"], input[name*="price"]').first
                 try:
                     await price_input.fill(str(details.price_usd), timeout=5000)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("KDP price fill failed (non-fatal): %s", exc)
 
                 # Publish — look for the publish/save-and-publish button
                 try:
@@ -449,8 +466,8 @@ class KDPDriver(BasePlatformDriver):
                     ).first
                     await publish_btn.click(timeout=5000)
                     await page.wait_for_load_state("domcontentloaded", timeout=30000)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    logger.warning("KDP publish button click failed: %s", exc)
 
                 url = page.url
                 book_id = None
@@ -468,6 +485,7 @@ class KDPDriver(BasePlatformDriver):
                 )
 
             except Exception as e:
+                logger.error("KDP create_paperback failed: %s", e, exc_info=True)
                 return UploadResult(
                     success=False,
                     platform="kdp",
@@ -554,16 +572,16 @@ class KDPDriver(BasePlatformDriver):
                     ).first
                     try:
                         await price_input.fill(str(details.price_usd), timeout=5000)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.warning("KDP resume: price fill failed (non-fatal): %s", exc)
                     try:
                         publish_btn = page.locator(
                             '#save-and-publish, #save-and-continue, button:has-text("Publish")'
                         ).first
                         await publish_btn.click(timeout=5000)
                         await page.wait_for_load_state("domcontentloaded", timeout=30000)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.warning("KDP resume: publish button click failed: %s", exc)
 
                 url = page.url
                 return UploadResult(
@@ -575,6 +593,7 @@ class KDPDriver(BasePlatformDriver):
                 )
 
             except Exception as e:
+                logger.error("KDP resume_paperback failed for book %s: %s", book_id, e, exc_info=True)
                 return UploadResult(
                     success=False,
                     platform="kdp",

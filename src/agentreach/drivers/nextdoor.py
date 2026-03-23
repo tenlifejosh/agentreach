@@ -14,12 +14,16 @@ Usage:
 """
 
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import Optional
 
 from ..browser.session import platform_context
 from ..vault.store import SessionVault
 from .base import BasePlatformDriver, UploadResult
+
+
+logger = logging.getLogger(__name__)
 
 
 class NextdoorDriver(BasePlatformDriver):
@@ -59,7 +63,8 @@ class NextdoorDriver(BasePlatformDriver):
                     }
                 """)
                 return bool(on_feed)
-        except Exception:
+        except Exception as exc:
+            logger.error("Nextdoor verify_session failed: %s", exc)
             return False
 
     async def create_post(self, text: str) -> UploadResult:
@@ -97,7 +102,8 @@ class NextdoorDriver(BasePlatformDriver):
 
                 try:
                     await post_area.wait_for(timeout=10000)
-                except Exception:
+                except Exception as exc:
+                    logger.debug("Nextdoor create-post editor not found on direct URL, falling back to news feed: %s", exc)
                     # Fall back to news feed and click the post prompt
                     await page.goto(self.NEWS_FEED_URL, wait_until="domcontentloaded", timeout=30000)
                     await page.wait_for_timeout(2000)
@@ -141,7 +147,8 @@ class NextdoorDriver(BasePlatformDriver):
                 # Fallback: check if text was entered; if not, type it
                 try:
                     entered_text = await post_area.inner_text()
-                except Exception:
+                except Exception as exc:
+                    logger.debug("Nextdoor could not read composed text back from editor: %s", exc)
                     entered_text = ""
 
                 if not entered_text.strip():
@@ -183,6 +190,7 @@ class NextdoorDriver(BasePlatformDriver):
                 )
 
             except Exception as e:
+                logger.error("Nextdoor create_post failed: %s", e, exc_info=True)
                 return UploadResult(
                     success=False,
                     platform="nextdoor",

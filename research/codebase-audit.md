@@ -4,6 +4,8 @@
 **Version audited:** 0.2.1  
 **Scope:** Full source audit — quality, bugs, security, coverage, docs, dependencies
 
+> **⚠️ STATUS NOTE (2026-03-23):** The bugs identified in this audit (BUG-001 through BUG-009) have been fixed in subsequent commits. This document is preserved as a historical record. See `research/bugfix-report.md` for the complete fix summary and `CHANGELOG.md` for version history.
+
 ---
 
 ## 1. File & Module Inventory

@@ -9,8 +9,8 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from agentreach.vault.store import SessionVault, _FERNET, VAULT_DIR
-from cryptography.fernet import Fernet, InvalidToken
+from agentreach.vault.store import SessionVault, _FERNET, VAULT_DIR, VaultCorruptedError
+from cryptography.fernet import Fernet
 
 
 # ── Initialization ─────────────────────────────────────────────────────────────
@@ -164,28 +164,44 @@ class TestVaultListPlatforms:
 # ── Encryption Integrity ────────────────────────────────────────────────────────
 
 class TestVaultEncryption:
-    def test_corrupted_file_returns_none(self, vault):
+    def test_corrupted_file_raises_vault_corrupted_error(self, vault):
+        """A corrupt .vault file raises VaultCorruptedError."""
         vault.save("kdp", {"k": "v"})
         path = vault._path("kdp")
-        # Corrupt the file
         path.write_bytes(b"this_is_not_valid_encrypted_data")
-        result = vault.load("kdp")
-        assert result is None
+        with pytest.raises(VaultCorruptedError):
+            vault.load("kdp")
 
-    def test_empty_file_returns_none(self, vault):
+    def test_empty_file_raises_vault_corrupted_error(self, vault):
         vault.save("kdp", {"k": "v"})
         path = vault._path("kdp")
         path.write_bytes(b"")
-        result = vault.load("kdp")
-        assert result is None
+        with pytest.raises(VaultCorruptedError):
+            vault.load("kdp")
 
-    def test_truncated_file_returns_none(self, vault):
+    def test_truncated_file_raises_vault_corrupted_error(self, vault):
         vault.save("kdp", {"k": "v"})
         path = vault._path("kdp")
         data = path.read_bytes()
         path.write_bytes(data[:10])
-        result = vault.load("kdp")
-        assert result is None
+        with pytest.raises(VaultCorruptedError):
+            vault.load("kdp")
+
+    def test_wrong_key_data_raises(self, vault):
+        """Data encrypted with a different key raises VaultCorruptedError."""
+        other_key = Fernet.generate_key()
+        other_fernet = Fernet(other_key)
+        path = vault._path("kdp")
+        path.write_bytes(other_fernet.encrypt(json.dumps({"k": "v"}).encode()))
+        with pytest.raises(VaultCorruptedError):
+            vault.load("kdp")
+
+    def test_invalid_json_inside_raises(self, vault):
+        """Valid Fernet but invalid JSON inside raises VaultCorruptedError."""
+        path = vault._path("kdp")
+        path.write_bytes(_FERNET.encrypt(b"this is not json!"))
+        with pytest.raises(VaultCorruptedError):
+            vault.load("kdp")
 
     def test_different_vault_instances_share_key(self, vault_dir):
         """Two vault instances in same dir should decrypt each other's data."""
@@ -206,8 +222,8 @@ class TestPathTraversal:
         assert path.parent == vault.vault_dir
 
     def test_path_with_normal_name(self, vault):
-        path = vault._path("my_platform")
-        assert "my_platform" in str(path)
+        path = vault._path("my-platform")
+        assert "my-platform" in str(path)
         assert str(vault.vault_dir) in str(path)
 
     def test_platforms_list_only_vault_files(self, vault):
@@ -219,23 +235,30 @@ class TestPathTraversal:
         assert "not_a_vault" not in platforms
         assert "kdp" in platforms
 
-    def test_safe_path_name_for_slashes(self, vault):
-        """Platform names with special chars are safely handled."""
-        # Should not raise even with odd chars
-        path = vault._path("platform with spaces")
-        assert path.parent == vault.vault_dir
+    def test_invalid_platform_name_raises(self, vault):
+        """Platform names with only special chars raise ValueError."""
+        with pytest.raises(ValueError):
+            vault._path("@@@###")
+
+    def test_platform_name_with_hyphens_ok(self, vault):
+        """Hyphens are allowed in platform names."""
+        path = vault._path("my-platform")
+        assert path.name == "my-platform.vault"
+
+    def test_platform_name_with_underscores_ok(self, vault):
+        """Underscores are allowed in platform names."""
+        path = vault._path("my_platform")
+        assert path.name == "my_platform.vault"
 
 
 # ── Backup & Restore ───────────────────────────────────────────────────────────
 
 class TestVaultBackupRestore:
     def test_backup_creates_file(self, vault, tmp_path):
-        """Backup command creates an encrypted archive."""
-        from agentreach.vault.store import _FERNET
+        """Backup logic creates an encrypted archive."""
         vault.save("kdp", {"cookies": [], "test": "backup"})
 
         backup_path = tmp_path / "backup.enc"
-        # Simulate backup logic
         bundle = {}
         for vf in vault.vault_dir.glob("*.vault"):
             bundle[vf.name] = base64.b64encode(vf.read_bytes()).decode()
@@ -249,8 +272,6 @@ class TestVaultBackupRestore:
 
     def test_backup_and_restore_roundtrip(self, vault, tmp_path):
         """Data backed up from vault can be restored."""
-        from agentreach.vault.store import _FERNET
-
         vault.save("kdp", {"test": "roundtrip_value"})
         vault.save("etsy", {"shop": "my_shop"})
 
@@ -259,7 +280,6 @@ class TestVaultBackupRestore:
         bundle = {}
         for vf in vault.vault_dir.glob("*.vault"):
             bundle[vf.name] = base64.b64encode(vf.read_bytes()).decode()
-
         payload = json.dumps(bundle).encode()
         backup_path.write_bytes(_FERNET.encrypt(payload))
 
@@ -283,9 +303,18 @@ class TestVaultBackupRestore:
 
     def test_restore_invalid_backup_raises(self, tmp_path):
         """Restoring from invalid/corrupt file should fail gracefully."""
-        from agentreach.vault.store import _FERNET
         bad_backup = tmp_path / "bad.enc"
         bad_backup.write_bytes(b"not_valid_encrypted_data")
 
         with pytest.raises(Exception):
             _FERNET.decrypt(bad_backup.read_bytes())
+
+    def test_vault_corrupt_error_message_contains_platform(self, vault):
+        """VaultCorruptedError message contains platform name."""
+        path = vault._path("kdp")
+        path.write_bytes(b"corrupt")
+        try:
+            vault.load("kdp")
+            assert False, "Should have raised"
+        except VaultCorruptedError as e:
+            assert "kdp" in str(e).lower()

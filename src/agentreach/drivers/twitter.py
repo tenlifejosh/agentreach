@@ -16,11 +16,15 @@ Usage:
 """
 
 import asyncio
+import logging
 from typing import Optional
 
 from ..browser.session import platform_context
 from ..vault.store import SessionVault
 from .base import BasePlatformDriver, UploadResult
+
+
+logger = logging.getLogger(__name__)
 
 
 class TwitterDriver(BasePlatformDriver):
@@ -58,7 +62,8 @@ class TwitterDriver(BasePlatformDriver):
                     }
                 """)
                 return bool(logged_in)
-        except Exception:
+        except Exception as exc:
+            logger.error("Twitter verify_session failed: %s", exc)
             return False
 
     async def post_tweet(self, text: str) -> UploadResult:
@@ -91,7 +96,8 @@ class TwitterDriver(BasePlatformDriver):
                 try:
                     await compose_area.wait_for(timeout=10000)
                     await compose_area.click()
-                except Exception:
+                except Exception as exc:
+                    logger.debug("Twitter compose area not available on home timeline, falling back to compose button: %s", exc)
                     # Try the tweet button to open compose modal
                     tweet_btn = page.locator(
                         '[data-testid="SideNav_NewTweet_Button"], '
@@ -131,6 +137,7 @@ class TwitterDriver(BasePlatformDriver):
                 )
 
             except Exception as e:
+                logger.error("Twitter post_tweet failed: %s", e, exc_info=True)
                 return UploadResult(
                     success=False,
                     platform="twitter",
@@ -198,6 +205,7 @@ class TwitterDriver(BasePlatformDriver):
                 )
 
             except Exception as e:
+                logger.error("Twitter reply_to_tweet failed for %s: %s", tweet_url, e, exc_info=True)
                 return UploadResult(
                     success=False,
                     platform="twitter",
