@@ -352,7 +352,7 @@ deeper auth cookies. When harvesting KDP:
 
 ## Security Notes
 
-- Sessions are stored at `~/.agentreach/vault/` — AES-256 encrypted
+- Sessions are stored at `~/.agentreach/vault/` — AES-128-CBC (Fernet) encrypted
 - Encryption key is derived from your machine UUID — vaults are non-portable by design
 - **Nothing ever leaves your machine** — no cloud sync, no telemetry
 - The vault directory is gitignored by default

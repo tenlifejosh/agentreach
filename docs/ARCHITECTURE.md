@@ -80,7 +80,7 @@ key = base64.urlsafe_b64encode(kdf.derive(machine_id))
 
 Key is derived at module import time and cached as `_FERNET`. All vault files are encrypted with this same key. Vault files are non-portable — they can only be decrypted on the machine that created them.
 
-**Encryption:** Python `cryptography` library's `Fernet` — AES-256-CBC + HMAC-SHA256 with a random IV per write.
+**Encryption:** Python `cryptography` library's `Fernet` — AES-128-CBC + HMAC-SHA256 with a random IV per write.
 
 **Data format:** Each `.vault` file is a Fernet-encrypted JSON blob. Example plaintext:
 ```json
