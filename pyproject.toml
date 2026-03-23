@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "agentreach"
-version = "0.2.1"
+version = "0.3.0"
 description = "Persistent authenticated web access for AI agents. Never ask a human to open a browser again."
 readme = "README.md"
-license = {text = "MIT"}
+license = {file = "LICENSE"}
 authors = [
     {name = "Joshua Noreen", email = "josh@tenlifecreatives.com"}
 ]
@@ -23,6 +23,7 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Internet :: WWW/HTTP :: Browsers",
 ]
@@ -58,8 +59,9 @@ agentreach-mcp = "agentreach.mcp_server:main"
 [project.urls]
 Homepage = "https://github.com/tenlifejosh/agentreach"
 Repository = "https://github.com/tenlifejosh/agentreach"
-Issues = "https://github.com/tenlifejosh/agentreach"
+Issues = "https://github.com/tenlifejosh/agentreach/issues"
 Documentation = "https://github.com/tenlifejosh/agentreach#readme"
+Changelog = "https://github.com/tenlifejosh/agentreach/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["src"]

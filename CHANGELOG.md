@@ -4,6 +4,26 @@ All notable changes to AgentReach. Format follows [Keep a Changelog](https://kee
 
 ---
 
+## [0.3.0] — 2026-03-23
+
+### Added
+- MCP server (`agentreach-mcp`) — 6 tools, 3 resources, 3 prompts for Claude Desktop, Cursor, and any MCP-compatible client
+- Full test suite — unit tests for vault, CLI, browser, drivers, health monitoring, edge cases (100+ assertions)
+- `docs/MCP_SETUP.md` — step-by-step MCP integration guide for Claude Desktop and Cursor
+- `agentreach-mcp` CLI entrypoint registered in `pyproject.toml`
+
+### Changed
+- Security hardening: vault `_path()` now sanitizes input against path traversal
+- `gumroad.py`: seller URL is now derived from the authenticated session, not hardcoded
+- `browser/uploader.py`: strategy 2 fixed — sends real file content via multipart form
+- TikTok removed from `PLATFORM_META` until a real driver exists (no more `KeyError`)
+- `playwright-stealth` added to declared dependencies
+
+### Fixed
+- All critical bugs identified in codebase audit — see git history for details
+
+---
+
 ## [0.2.1] — 2026-03-23
 
 ### Added
@@ -29,13 +49,6 @@ All notable changes to AgentReach. Format follows [Keep a Changelog](https://kee
 - Gumroad driver: added API-based sales reporting and product listing
 - Pinterest driver: added board creation with fallback logic
 - Reddit driver: clipboard paste strategy for Lexical editor (more reliable than character-by-character typing)
-
-### Known Issues
-- `browser/uploader.py` strategy 2 sends literal `"placeholder"` as file content (broken)
-- `gumroad.py` hardcodes seller URL to `tenlifejosh.gumroad.com` (wrong for other users)
-- TikTok in `PLATFORM_META` but no driver actions — `get_driver("tiktok")` raises `KeyError`
-- `playwright-stealth` not in declared dependencies — silently absent for most installs
-- Vault `_path()` doesn't sanitize against path traversal beyond space replacement
 
 ---
 

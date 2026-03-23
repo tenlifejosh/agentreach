@@ -247,32 +247,16 @@ See [docs/SECURITY.md](docs/SECURITY.md) for the full threat model.
 2. `python -m venv .venv && source .venv/bin/activate`
 3. `pip install -e ".[dev]"`
 4. `playwright install chromium`
-5. `pytest tests/` — make sure the 4 vault tests pass
+5. `pytest tests/` — make sure the full test suite passes
 
 **Adding a driver:** See [docs/DRIVERS.md](docs/DRIVERS.md) for the step-by-step guide and template.
 
-**What needs work:**
-- Tests — currently only vault is tested. Driver tests with mocked `platform_context` are the top priority.
-- Error handling — most drivers swallow exceptions silently. They should log and surface errors.
-- Uploader strategy 2 (`uploader.py`) sends placeholder content instead of real file bytes — needs fixing.
-- Gumroad driver hardcodes a seller URL — needs to be extracted from the page post-creation.
-
 Pull requests welcome. Open an issue first for anything bigger than a bug fix.
-
----
 
 ## Roadmap
 
-**v0.3**
-- Fix upload strategy 2 (binary file content via JS)
-- Fix Gumroad hardcoded seller URL
-- Add path traversal sanitization in vault `_path()`
-- Add `playwright-stealth` to declared dependencies
-- CLI tests via `typer.testing.CliRunner`
-- Health check TTL for Reddit and Twitter
-
 **v0.4**
-- Full error logging (currently silent swallows everywhere)
+- Full error logging (currently silent swallows in some drivers)
 - TikTok driver actions
 - `--json` output flag on all commands
 
@@ -280,7 +264,7 @@ Pull requests welcome. Open an issue first for anything bigger than a bug fix.
 - LinkedIn driver
 - YouTube Studio driver
 - Shopify driver
-- Test coverage ≥ 60%
+- Test coverage ≥ 80%
 - Proper async error propagation throughout
 
 ---

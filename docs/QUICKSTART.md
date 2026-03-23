@@ -27,7 +27,7 @@ Verify it worked:
 
 ```bash
 agentreach --version
-# AgentReach v0.2.1
+# AgentReach v0.3.0
 
 agentreach doctor
 # Runs a full system check

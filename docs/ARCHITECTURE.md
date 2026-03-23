@@ -21,7 +21,7 @@ These layers compose to give you: *harvest once → automate forever*.
 ```
 agentreach/
 ├── src/agentreach/
-│   ├── __init__.py            # Package version (0.2.1)
+│   ├── __init__.py            # Package version (0.3.0)
 │   ├── cli.py                 # Typer CLI — all commands
 │   │
 │   ├── vault/

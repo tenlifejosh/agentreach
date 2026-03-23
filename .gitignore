@@ -1,3 +1,37 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Testing & coverage
+.pytest_cache/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Secrets & vault
+*.vault
+vault/
+*.salt
+*.key
+.env
+.env.*
+secrets.json
+credentials.json
+
+# Internal / private research
+research/
+replit-website-brief.md
+
 # Debug and one-off scripts (root level only)
 /debug_*.py
 /test_*.py
@@ -14,32 +48,27 @@ complete_*.py
 delete_*.py
 kdp_*.py
 
-# Screenshots
+# Screenshots and media
 *_screenshots/
+screenshots/
 *.png
 *.jpg
+*.jpeg
+*.gif
 
 # Temp files
 *.txt
 playbook_results.txt
-
-# Python
-__pycache__/
-*.pyc
-*.pyo
-.venv/
-venv/
-*.egg-info/
-dist/
-build/
+*.tmp
+*.bak
 
 # OS
 .DS_Store
 .DS_Store?
+Thumbs.db
 
-# Vault / secrets
-*.vault
-vault/
-
-# Env
-.env
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
