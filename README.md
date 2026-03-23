@@ -3,7 +3,7 @@
 **Never ask a human to open a browser again.**
 
 [![GitHub stars](https://img.shields.io/github/stars/tenlifejosh/agentreach?style=social)](https://github.com/tenlifejosh/agentreach/stargazers)
-![Version](https://img.shields.io/badge/version-0.2.0-blue)
+![Version](https://img.shields.io/badge/version-0.2.1-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Python](https://img.shields.io/badge/python-3.9+-blue)
 
@@ -86,7 +86,7 @@ No human. No relay. No browser window. Just results.
 | Etsy | ✅ | ✅ | ✅ | — |
 | Gumroad | ✅ | ✅ | ✅ | — |
 | Pinterest | — | — | — | ✅ |
-| TikTok | — | — | ✅ | ✅ |
+| TikTok | — | — | ⚠️ (session only) | 🔜 (coming) |
 | Reddit | — | — | ✅ | ✅ |
 | X / Twitter | — | — | ✅ | ✅ |
 | *LinkedIn, Shopify, YouTube, Substack* | *Pro* | *Pro* | *Pro* | *Pro* |
@@ -108,11 +108,26 @@ No human. No relay. No browser window. Just results.
 
 ---
 
+## Known Limitations
+
+**KDP — Step-Up Auth Required**
+Amazon KDP requires `max_auth_age=0` step-up authentication for all title creation and editing. This means: the bookshelf loads fine with saved sessions, but creating or editing titles requires a fresh harvest session. Run `agentreach harvest kdp` before any KDP upload operation. This is a KDP security constraint, not an AgentReach bug.
+
+**TikTok — Session Vault Only (v0.2.x)**
+TikTok sessions can be harvested and stored in the vault, but the full posting/action driver is not yet implemented. Status shows as session-level health only. Full TikTok driver is in progress.
+
+**Twitter/X — Posting is Rate-Limited**
+X's platform aggressively rate-limits and bot-detects browser automation for posting. The Twitter driver works, but aggressive use may trigger account restrictions. Use conservatively.
+
+**PyPI Release**
+AgentReach is not yet on PyPI. Install from source via `git clone` (see Installation below). PyPI release is planned.
+
+---
+
 ## Installation
 
 ```bash
-pip install agentreach
-# or from source:
+# Install from source (PyPI release coming soon):
 git clone https://github.com/tenlifejosh/agentreach
 cd agentreach
 pip install -e .

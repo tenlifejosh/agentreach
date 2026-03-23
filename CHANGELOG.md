@@ -12,6 +12,8 @@ Versioning: [Semantic Versioning](https://semver.org/)
 
 - **TikTok PLATFORM_META** — Added TikTok to the platform icon/label registry. Previously rendered as `🔲 Tiktok` in `doctor` and `status` output; now correctly renders as `🎵 TikTok`.
 - **README platform table** — Added TikTok, Reddit, and X/Twitter to the supported platforms table (they were supported but unlisted).
+- **README accuracy** — TikTok marked as session-only (driver not yet implemented). Version badge corrected. `pip install` instructions updated to reflect PyPI not yet published.
+- **Known Limitations section added** — Documents KDP step-up auth requirement, TikTok driver status, Twitter rate limiting, and PyPI release status.
 
 ---
 
