@@ -425,7 +425,7 @@ def restore(
 
 @app.command()
 def harvest(
-    platform: str = typer.Argument(..., help="Platform to harvest: kdp, etsy, gumroad, pinterest, reddit, twitter"),
+    platform: str = typer.Argument(..., help="Platform to harvest: kdp, etsy, gumroad, pinterest, reddit, twitter, nextdoor, tiktok"),
     timeout: int = typer.Option(300, help="Seconds to wait for login (default: 300)"),
 ):
     """
@@ -459,7 +459,7 @@ def kdp_upload(
     cover: Path = typer.Option(..., help="Path to cover PDF (full wrap)"),
     title: str = typer.Option(..., help="Book title"),
     subtitle: str = typer.Option("", help="Book subtitle"),
-    author: str = typer.Option("Joshua Noreen", help="Author name"),
+    author: str = typer.Option(..., help="Author name"),
     description: str = typer.Option("", help="HTML book description"),
     price: float = typer.Option(12.99, help="USD price"),
     keywords: str = typer.Option("", help="Comma-separated keywords (up to 7)"),

@@ -33,15 +33,16 @@ This provides authenticated encryption — the data is both encrypted and tamper
 
 ### Key Derivation
 
-The encryption key is derived at runtime from the machine's MAC address (network interface hardware ID):
+The encryption key is derived at runtime using the machine's MAC address as key material and a persistent random salt:
 
 ```python
+# salt = 32 random bytes stored at ~/.agentreach/vault/.salt
+#         (generated once on first use; backward-compat: reconstructed from MAC for existing vaults)
 machine_id = str(uuid.getnode()).encode()   # MAC address as integer → bytes
-salt = hashlib.sha256(machine_id).digest()  # deterministic 32-byte salt
 kdf = PBKDF2HMAC(
     algorithm=hashes.SHA256(),
     length=32,
-    salt=salt,
+    salt=salt,                              # persistent random salt
     iterations=480000,
 )
 key = base64.urlsafe_b64encode(kdf.derive(machine_id))
@@ -50,6 +51,8 @@ key = base64.urlsafe_b64encode(kdf.derive(machine_id))
 **PBKDF2** with 480,000 iterations makes brute-force attacks expensive. As of 2026, NIST recommends ≥ 210,000 iterations for SHA-256; 480,000 exceeds this.
 
 **Key is non-portable by design.** A vault file copied to another machine cannot be decrypted — the MAC address will differ, producing a different key. This is intentional: it prevents credential exfiltration via file copy.
+
+**Salt persistence:** The salt is stored at `~/.agentreach/vault/.salt`. If this file is deleted, the key cannot be reconstructed and existing vault files become unrecoverable. Include `.salt` in any manual vault backup.
 
 ### Key Caching
 

@@ -28,9 +28,10 @@ vault/
 secrets.json
 credentials.json
 
-# Internal / private research
+# Internal / private research and launch assets
 research/
 replit-website-brief.md
+launch/
 
 # Debug and one-off scripts (root level only)
 /debug_*.py

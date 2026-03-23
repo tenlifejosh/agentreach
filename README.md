@@ -197,7 +197,7 @@ agentreach pinterest pin \
 ```bash
 agentreach harvest reddit             # One-time login
 
-agentreach reddit post selftext "My Title" "Post body text"
+agentreach reddit post MachineLearning "My Title" "Post body text"
 agentreach reddit comment https://reddit.com/r/.../comments/... "Comment text"
 ```
 
