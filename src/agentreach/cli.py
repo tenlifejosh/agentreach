@@ -28,6 +28,7 @@ gumroad_app = typer.Typer(help="Gumroad commands")
 pinterest_app = typer.Typer(help="Pinterest commands")
 reddit_app = typer.Typer(help="Reddit commands")
 twitter_app = typer.Typer(help="X/Twitter commands")
+nextdoor_app = typer.Typer(help="Nextdoor commands")
 
 app.add_typer(kdp_app, name="kdp")
 app.add_typer(etsy_app, name="etsy")
@@ -35,6 +36,7 @@ app.add_typer(gumroad_app, name="gumroad")
 app.add_typer(pinterest_app, name="pinterest")
 app.add_typer(reddit_app, name="reddit")
 app.add_typer(twitter_app, name="twitter")
+app.add_typer(nextdoor_app, name="nextdoor")
 
 
 # Platform metadata for display
@@ -45,6 +47,7 @@ PLATFORM_META = {
     "pinterest": {"icon": "📌", "label": "Pinterest"},
     "reddit":    {"icon": "🤖", "label": "Reddit"},
     "twitter":   {"icon": "🐦", "label": "X / Twitter"},
+    "nextdoor":  {"icon": "🏘️", "label": "Nextdoor"},
     "tiktok":    {"icon": "🎵", "label": "TikTok"},
 }
 
@@ -726,6 +729,29 @@ def twitter_reply(
 
     if result.success:
         rprint(f"[green]✅ {result.message}[/green]")
+    else:
+        rprint(f"[red]❌ {result.error}[/red]")
+        raise typer.Exit(1)
+
+
+# ── Nextdoor commands ─────────────────────────────────────────────────────────
+
+@nextdoor_app.command("post")
+def nextdoor_post(
+    text: str = typer.Argument(..., help="Post content to publish to the Nextdoor neighborhood feed"),
+):
+    """Post to the Nextdoor neighborhood feed as the logged-in business account."""
+    from .drivers.nextdoor import NextdoorDriver
+
+    console.print(f"[bold]🏘️  Posting to Nextdoor...[/bold]")
+    driver = NextdoorDriver()
+    driver.require_valid_session()
+    result = driver.post(text)
+
+    if result.success:
+        rprint(f"[green]✅ {result.message}[/green]")
+        if result.url:
+            rprint(f"   URL: {result.url}")
     else:
         rprint(f"[red]❌ {result.error}[/red]")
         raise typer.Exit(1)

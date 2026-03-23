@@ -4,6 +4,7 @@ from .gumroad import GumroadDriver
 from .pinterest import PinterestDriver
 from .reddit import RedditDriver
 from .twitter import TwitterDriver
+from .nextdoor import NextdoorDriver
 from .base import BasePlatformDriver, UploadResult
 
 
@@ -14,6 +15,7 @@ DRIVERS = {
     "pinterest": PinterestDriver,
     "reddit": RedditDriver,
     "twitter": TwitterDriver,
+    "nextdoor": NextdoorDriver,
 }
 
 
