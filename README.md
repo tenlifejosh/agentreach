@@ -1,308 +1,292 @@
-# AgentReach 🦾
+# AgentReach
 
-**Never ask a human to open a browser again.**
+**Persistent authenticated web access for AI agents. Harvest a session once — automate forever.**
 
-[![GitHub stars](https://img.shields.io/github/stars/tenlifejosh/agentreach?style=social)](https://github.com/tenlifejosh/agentreach/stargazers)
-![Version](https://img.shields.io/badge/version-0.2.1-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
-![Python](https://img.shields.io/badge/python-3.9+-blue)
+AgentReach gives AI agents the ability to act on web platforms (KDP, Etsy, Gumroad, Pinterest, Reddit, X, Nextdoor) without ever asking a human to open a browser again. You log in once. The session is encrypted locally. Every future operation runs headless.
 
-AgentReach gives AI agents persistent, authenticated access to any web platform — KDP, Etsy, Gumroad, Pinterest, and beyond. One 10-minute bootstrap session. Autonomous forever after.
-
----
-
-## ⭐ Star this repo if AgentReach solves a problem you've hit.
-## 💖 [Sponsor the project](https://github.com/sponsors/tenlifejosh) to support ongoing development.
+[![PyPI version](https://img.shields.io/pypi/v/agentreach)](https://pypi.org/project/agentreach/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue)](https://www.python.org/)
 
 ---
 
-## The Problem
+## Install
 
-Every AI agent hits the same wall:
-
-```
-Agent: "I'll publish your product to Amazon KDP."
-Reality: *needs browser relay* *needs logged-in session* *file upload fails* *relay disconnects*
+```bash
+pip install agentreach
+playwright install chromium
 ```
 
-The agent isn't dumb. The infrastructure just isn't there. Authentication dies when the human walks away. File uploaders reject programmatic input. Sessions expire with no recovery path. Every platform is a silo.
-
-**AgentReach fixes this at the root.**
-
 ---
 
-## Real-World Use Cases
+## 60-Second Quickstart
 
-**For digital product sellers:**
-> "I told my AI agent to publish my new journal to KDP, Etsy, and Gumroad — all three — while I was at my kid's soccer game. Everything was live when I got back."
+```bash
+# 1. Harvest your first session (opens a browser — log in normally)
+agentreach harvest kdp
 
-**For content creators:**
-> "My agent posts to Pinterest every day at 9am. I haven't touched Pinterest manually in two months."
+# 2. Check everything's healthy
+agentreach doctor
 
-**For AI developers:**
-> "I stopped building one-off browser automations and just use AgentReach. All my sessions in one vault, one API call to any platform."
+# 3. Do something real
+agentreach kdp upload \
+  --manuscript interior.pdf \
+  --cover cover.pdf \
+  --title "My Book" \
+  --author "Jane Smith" \
+  --price 12.99
+```
 
-**For agencies:**
-> "We manage 12 clients' digital product stores. AgentReach handles all the uploads. We focus on strategy."
+That's it. No passwords stored. No API keys for KDP. Just your encrypted session, living on your local machine.
 
 ---
 
 ## How It Works
 
-### 1. Bootstrap (once, ~10 minutes)
-```bash
-agentreach harvest --platform kdp
-# Opens a real browser window. You log in normally.
-# AgentReach saves your encrypted session. You're done.
+```
+┌────────────────────────────────────────────────────────┐
+│                        YOU                             │
+│          agentreach harvest <platform>                  │
+│          (opens a browser — log in once)               │
+└──────────────────────────┬─────────────────────────────┘
+                           │ cookies + tokens
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│                    Session Vault                        │
+│        ~/.agentreach/vault/<platform>.vault            │
+│        AES-256 encrypted, machine-specific key         │
+└──────────────────────────┬─────────────────────────────┘
+                           │ decrypted at runtime
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│                  Platform Drivers                       │
+│   ┌─────────┐ ┌──────┐ ┌─────────┐ ┌───────────────┐  │
+│   │   KDP   │ │ Etsy │ │Gumroad  │ │Pinterest/Reddit│ │
+│   │(browser)│ │(API) │ │(API+br) │ │Twitter/Nextdoor│ │
+│   └─────────┘ └──────┘ └─────────┘ └───────────────┘  │
+└──────────────────────────┬─────────────────────────────┘
+                           │ results
+                           ▼
+┌────────────────────────────────────────────────────────┐
+│                    Your AI Agent                        │
+│         UploadResult(success=True, product_id=...)     │
+└────────────────────────────────────────────────────────┘
 ```
 
-### 2. Forever After (autonomous)
-```bash
-agentreach upload --platform kdp --manuscript interior.pdf --cover cover.pdf --title "My Book"
-agentreach publish --platform etsy --product ./my-product/
-agentreach post --platform pinterest --image pin.jpg --description "..." --link https://...
-```
-
-No human. No relay. No browser window. Just results.
+**Two auth models:**
+- **Browser-based** (KDP, Pinterest, Reddit, X, Nextdoor): harvests cookies from a real login, replays them in headless Playwright
+- **API-based** (Etsy, Gumroad): stores your OAuth token/API key in the encrypted vault
 
 ---
 
 ## Features
 
-- **🔐 Encrypted Session Vault** — AES-256 encrypted cookie + token storage. Sessions stored locally, never transmitted.
-- **🤖 Headless Platform Drivers** — Playwright-powered drivers for KDP, Etsy, Gumroad, Pinterest. Loads saved sessions, operates fully headless.
-- **📁 React Upload Bypass** — Solves the #1 file upload failure mode: React synthetic event systems rejecting programmatic input. Works on KDP, Etsy, and any React-based uploader.
-- **♻️ Session Auto-Recovery** — Health checks detect expired sessions before they cause failures. Proactive alerts give you time to re-harvest before anything breaks.
-- **🔌 OpenClaw Skill** — Drop-in skill for OpenClaw agents. `agentreach` commands available directly in agent context.
-- **📦 Platform-Agnostic Core** — Add any platform by subclassing `BasePlatformDriver`. Built to extend.
+- **Encrypted session vault** — AES-256-CBC + HMAC (Fernet) with machine-specific key derivation via PBKDF2 (480,000 iterations). Nothing leaves disk.
+- **Session health monitoring** — TTL-based expiry estimates, `status` command, `doctor` command with actionable recommendations
+- **Browser session harvester** — opens a visible browser, waits for you to log in, captures cookies automatically via URL pattern detection
+- **Headless session replay** — injects harvested cookies into a Playwright context and runs automation silently
+- **React/SPA upload bypass** — 4-strategy engine to set file inputs in React-controlled forms (native property setter, drag-and-drop simulation, clipboard API)
+- **Platform-specific drivers** — each driver understands the platform's forms, selectors, and quirks
+- **CLI with Rich output** — color-coded status tables, actionable error messages, `doctor` for full diagnostics
+- **Vault backup/restore** — encrypted export for disaster recovery (machine-bound by default)
 
 ---
 
-## Supported Platforms
+## Platform Drivers
 
-| Platform | Upload Files | Create Listings | Check Status | Post Content |
-|----------|-------------|-----------------|--------------|--------------|
-| Amazon KDP | ✅ | ✅ | ✅ | — |
-| Etsy | ✅ | ✅ | ✅ | — |
-| Gumroad | ✅ | ✅ | ✅ | — |
-| Pinterest | — | — | — | ✅ |
-| TikTok | — | — | ⚠️ (session only) | 🔜 (coming) |
-| Reddit | — | — | ✅ | ✅ |
-| X / Twitter | — | — | ✅ | ✅ |
-| *LinkedIn, Shopify, YouTube, Substack* | *Pro* | *Pro* | *Pro* | *Pro* |
-| *More via community drivers* | | | | |
+| Platform | Status | Auth Method | Actions |
+|---|---|---|---|
+| Amazon KDP | ✅ Stable | Browser session | Upload paperback, resume draft, list bookshelf |
+| Etsy | ✅ Stable | API token + OAuth | Create listing, upload images, upload digital files |
+| Gumroad | ✅ Stable | API token | Publish product, check sales, list products |
+| Pinterest | ✅ Stable | Browser session | Create pin, create board |
+| Reddit | ✅ Stable | Browser session | Post, comment |
+| X / Twitter | ✅ Stable | Browser session | Tweet, reply |
+| Nextdoor | ✅ Beta | Browser session | Post to neighborhood feed |
+| TikTok | 🚧 Vault only | Browser session | Session storage only — no actions yet |
 
----
-
-## AgentReach vs Alternatives
-
-| | AgentReach | Browser Use / Stagehand | Playwright (DIY) | RPA Tools |
-|--|--|--|--|--|
-| Works without API | ✅ Yes | ✅ Yes | ✅ Yes | ✅ Yes |
-| Session persistence | ✅ Built-in vault | ❌ Manual | ❌ Manual | ⚠️ Varies |
-| React upload bypass | ✅ Solved | ❌ Common failure | ❌ Manual | ⚠️ Varies |
-| Platform drivers | ✅ KDP, Etsy, Gumroad, Pinterest | ❌ DIY | ❌ DIY | ⚠️ Varies |
-| OpenClaw integration | ✅ Native skill | ❌ No | ❌ No | ❌ No |
-| Setup time | ✅ 10 min | ⚠️ Hours | ❌ Days | ❌ Days |
-| Cost | ✅ Free (MIT) | ⚠️ Usage-based | ✅ Free | ❌ Expensive |
+> **Browser-based drivers are inherently fragile.** Platform UI changes will break selectors. Selectors were last verified March 2026. Expect maintenance over time.
 
 ---
 
-## Known Limitations
+## CLI Reference
 
-**KDP — Step-Up Auth Required**
-Amazon KDP requires `max_auth_age=0` step-up authentication for all title creation and editing. This means: the bookshelf loads fine with saved sessions, but creating or editing titles requires a fresh harvest session. Run `agentreach harvest kdp` before any KDP upload operation. This is a KDP security constraint, not an AgentReach bug.
-
-**TikTok — Session Vault Only (v0.2.x)**
-TikTok sessions can be harvested and stored in the vault, but the full posting/action driver is not yet implemented. Status shows as session-level health only. Full TikTok driver is in progress.
-
-**Twitter/X — Posting is Rate-Limited**
-X's platform aggressively rate-limits and bot-detects browser automation for posting. The Twitter driver works, but aggressive use may trigger account restrictions. Use conservatively.
-
-**PyPI Release**
-AgentReach is not yet on PyPI. Install from source via `git clone` (see Installation below). PyPI release is planned.
-
----
-
-## Installation
+### Global commands
 
 ```bash
-# Install from source (PyPI release coming soon):
-git clone https://github.com/tenlifejosh/agentreach
-cd agentreach
-pip install -e .
+agentreach --version                  # Show version
+agentreach status                     # Session health table (all platforms)
+agentreach doctor                     # Full diagnostics: sessions + drivers + vault + Playwright
+agentreach platforms                  # List all platforms with auth method and status
+agentreach harvest <platform>         # Bootstrap a session (opens browser)
+agentreach verify <platform>          # Verify a saved session with a live request
+agentreach backup [--output path]     # Export encrypted vault bundle
+agentreach restore <file.enc>         # Import vault bundle
+agentreach restore <file.enc> --overwrite   # Overwrite existing sessions
 ```
 
-**Requirements:** Python 3.10+, Playwright
+### KDP
 
-```bash
-playwright install chromium
-```
-
-📖 **[Full Getting Started Guide →](docs/GETTING-STARTED.md)**
-
----
-
-## Quick Start
-
-### Bootstrap a platform
-```bash
-# Opens real browser for you to log in. Saves session automatically.
-agentreach harvest kdp
-agentreach harvest etsy
-agentreach harvest gumroad
-agentreach harvest pinterest
-```
-
-### Check session health
-```bash
-agentreach status
-# KDP        ✅ healthy  (expires in 23 days)
-# Etsy       ✅ healthy  (expires in 45 days)
-# Gumroad    ⚠️  expires in 3 days — run: agentreach harvest gumroad
-# Pinterest  ✅ healthy  (expires in 60 days)
-```
-
-### Upload to KDP
 ```bash
 agentreach kdp upload \
-  --manuscript ./interior.pdf \
-  --cover ./cover-full-wrap.pdf \
-  --title "My Book Title" \
-  --subtitle "My Subtitle" \
-  --description "HTML description here" \
+  --manuscript interior.pdf \
+  --cover cover.pdf \
+  --title "My Book" \
+  --subtitle "A Subtitle" \
+  --author "Jane Smith" \
+  --description "<p>Book description here.</p>" \
   --price 12.99 \
-  --keywords "keyword1,keyword2,keyword3"
+  --keywords "journal,planner,gift"
+
+agentreach kdp bookshelf              # List books with status
 ```
 
-### Publish to Etsy
+### Etsy
+
 ```bash
+# One-time credential setup
+agentreach etsy set-credentials \
+  --api-key YOUR_API_KEY \
+  --access-token YOUR_TOKEN \
+  --shop-id YOUR_SHOP_ID
+
+# Publish a listing
 agentreach etsy publish \
-  --product-dir ./my-product/ \
-  --listing-file etsy-listing.md \
-  --digital-file product.pdf \
-  --mockups mockup-1.jpg,mockup-2.jpg,mockup-3.jpg
+  --title "Printable Planner 2026" \
+  --description "A beautiful digital planner..." \
+  --price 4.99 \
+  --digital-file planner.pdf \
+  --images mock1.jpg,mock2.jpg \
+  --tags "planner,printable,digital download"
 ```
 
-### Post to Pinterest
+### Gumroad
+
 ```bash
-agentreach pinterest post \
-  --image pin.jpg \
-  --title "Pin Title" \
-  --description "Pin description" \
-  --link "https://amazon.com/dp/XXXXX" \
-  --board "Faith Journals"
+# One-time token setup
+agentreach gumroad set-token YOUR_ACCESS_TOKEN
+
+# Publish a product
+agentreach gumroad publish \
+  --name "My Digital Product" \
+  --description "Product description..." \
+  --price 7.99 \
+  --file product.pdf \
+  --url custom-url-slug
+
+# Check sales
+agentreach gumroad sales
+agentreach gumroad sales --after 2026-01-01
+```
+
+### Pinterest
+
+```bash
+agentreach harvest pinterest          # One-time login
+
+agentreach pinterest pin \
+  --title "My Pin Title" \
+  --description "Pin description..." \
+  --image mockup.jpg \
+  --link https://your-shop.com \
+  --board "My Board Name"
+```
+
+### Reddit
+
+```bash
+agentreach harvest reddit             # One-time login
+
+agentreach reddit post selftext "My Title" "Post body text"
+agentreach reddit comment https://reddit.com/r/.../comments/... "Comment text"
+```
+
+### X / Twitter
+
+```bash
+agentreach harvest twitter            # One-time login
+
+agentreach twitter tweet "Your tweet text here (max 280 chars)"
+agentreach twitter reply https://x.com/user/status/123456 "Reply text"
+```
+
+### Nextdoor
+
+```bash
+agentreach harvest nextdoor           # One-time login
+
+agentreach nextdoor post "Your neighborhood post text here"
 ```
 
 ---
 
-## OpenClaw Integration
+## Security Model
 
-Drop `agentreach` in your OpenClaw workspace skills folder and agents get native access:
+Sessions are stored in `~/.agentreach/vault/` as individual `.vault` files — one per platform.
 
-```
-# In agent context:
-Use agentreach to upload interior.pdf and cover.pdf to KDP with title "Pray Bold"
-```
+**Encryption:** Fernet (AES-256-CBC + HMAC-SHA256). The key is derived via PBKDF2-HMAC-SHA256 with 480,000 iterations using your machine's MAC address as the seed. This makes vault files non-portable by design — a vault file moved to another machine cannot be decrypted.
 
-See `skills/agentreach/SKILL.md` for full agent usage docs.
+**What's stored:** Playwright cookies (serialized JSON), OAuth tokens, API keys, and metadata (`harvested_at`, `_saved_at`).
 
----
+**What leaves disk:** Nothing. All encryption/decryption is local. AgentReach makes no network calls except to the target platform.
 
-## Built With AgentReach
+**Backup portability:** `agentreach backup` re-encrypts the bundle with the same machine-specific key. Backups can only be restored on the same machine.
 
-_Using AgentReach in production? [Open a PR](https://github.com/tenlifejosh/agentreach/pulls) to add your project here._
+**Known limitations:**
+- MAC address-based key derivation means vault is unrecoverable if your network interface changes (VMs, hardware replacement)
+- No protection against local root access — if an attacker has root on your machine, they can read the MAC and reconstruct the key
+- `playwright-stealth` is used to reduce bot detection but is not guaranteed
 
-| Project | Use Case | By |
-|---------|----------|----|
-| [Ten Life Creatives](https://tenlifecreatives.com) | Digital product publishing to KDP, Etsy, Gumroad | @tenlifejosh |
-| *Your project here* | *Your use case* | *You* |
-
----
-
-## Security
-
-- Sessions stored at `~/.agentreach/vault/` (AES-256 encrypted)
-- Encryption key derived from machine UUID — vault is machine-specific
-- No credentials ever leave your machine
-- No cloud sync, no telemetry
-- Vault file is gitignored by default
-
----
-
-## Architecture
-
-```
-agentreach/
-├── src/agentreach/
-│   ├── vault/           # Encrypted session storage
-│   │   ├── store.py     # VaultStore — read/write encrypted sessions
-│   │   └── health.py    # SessionHealth — expiry detection + alerts
-│   ├── browser/         # Headless browser management
-│   │   ├── harvester.py # Cookie harvest via visible browser login
-│   │   ├── session.py   # Load saved sessions into headless context
-│   │   └── uploader.py  # React-bypass file upload engine
-│   ├── drivers/         # Platform-specific drivers
-│   │   ├── base.py      # BasePlatformDriver
-│   │   ├── kdp.py       # Amazon KDP driver
-│   │   ├── etsy.py      # Etsy driver
-│   │   ├── gumroad.py   # Gumroad driver (API-first, cookie fallback)
-│   │   └── pinterest.py # Pinterest driver
-│   ├── api/             # Optional local HTTP API
-│   │   └── server.py    # FastAPI server for agent integration
-│   └── cli.py           # Typer CLI
-├── skills/agentreach/   # OpenClaw skill
-└── tests/
-```
+See [docs/SECURITY.md](docs/SECURITY.md) for the full threat model.
 
 ---
 
 ## Contributing
 
-AgentReach is MIT licensed. PRs welcome.
+1. Fork and clone
+2. `python -m venv .venv && source .venv/bin/activate`
+3. `pip install -e ".[dev]"`
+4. `playwright install chromium`
+5. `pytest tests/` — make sure the 4 vault tests pass
 
-**Priority community drivers:** LinkedIn, Shopify, Substack, Medium, YouTube Studio
+**Adding a driver:** See [docs/DRIVERS.md](docs/DRIVERS.md) for the step-by-step guide and template.
 
-**How to add a platform:**
-1. Subclass `BasePlatformDriver`
-2. Implement `harvest()`, `verify_session()`, and your platform's action methods
-3. Register in `drivers/__init__.py`
-4. Submit a PR
+**What needs work:**
+- Tests — currently only vault is tested. Driver tests with mocked `platform_context` are the top priority.
+- Error handling — most drivers swallow exceptions silently. They should log and surface errors.
+- Uploader strategy 2 (`uploader.py`) sends placeholder content instead of real file bytes — needs fixing.
+- Gumroad driver hardcodes a seller URL — needs to be extracted from the page post-creation.
 
----
-
-## Why We Built This
-
-We're building digital products with an AI agent (Hutch, powered by [OpenClaw](https://openclaw.ai)). Every day, the agent would build something great and then hit a wall — a login screen, a file uploader, a session that died overnight.
-
-The agent wasn't the problem. The plumbing was.
-
-AgentReach is that plumbing. Build it once, open source it, and let every agent builder stand on it.
+Pull requests welcome. Open an issue first for anything bigger than a bug fix.
 
 ---
 
-## Pro Tier
+## Roadmap
 
-Need cloud session sync, team vaults, or custom platform drivers?
+**v0.3**
+- Fix upload strategy 2 (binary file content via JS)
+- Fix Gumroad hardcoded seller URL
+- Add path traversal sanitization in vault `_path()`
+- Add `playwright-stealth` to declared dependencies
+- CLI tests via `typer.testing.CliRunner`
+- Health check TTL for Reddit and Twitter
 
-📄 **[See COMMERCIAL.md for Pro & Enterprise →](COMMERCIAL.md)**
+**v0.4**
+- Full error logging (currently silent swallows everywhere)
+- TikTok driver actions
+- `--json` output flag on all commands
 
----
-
-## 🦞 The Claw Ecosystem
-
-AgentReach is part of the Ten Life Creatives open-source toolkit for AI builders:
-
-- **[ClawList](https://github.com/tenlifejosh/clawlist)** — AI-powered task management for OpenClaw
-- **[ClawRadar](https://github.com/tenlifejosh/clawradar)** — Real-time trend monitoring
-- **[ClawLaws](https://github.com/tenlifejosh/clawlaws)** — Operating constitution for your AI agent
+**v1.0**
+- LinkedIn driver
+- YouTube Studio driver
+- Shopify driver
+- Test coverage ≥ 60%
+- Proper async error propagation throughout
 
 ---
 
 ## License
 
-MIT © Ten Life Creatives — Joshua Noreen
+MIT © Joshua Noreen / Ten Life Creatives
 
----
-
-*Built by [Ten Life Creatives](https://tenlifecreatives.com). Powered by [OpenClaw](https://openclaw.ai).*
+See [LICENSE](LICENSE) for full terms. Commercial use is permitted under MIT. If you're building something commercial on top of AgentReach, consider contributing improvements back.

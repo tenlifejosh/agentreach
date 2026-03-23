@@ -41,9 +41,18 @@ dev = [
     "pytest-asyncio>=0.21",
     "pytest-playwright>=0.4",
 ]
+mcp = [
+    "mcp>=1.0.0",
+]
+mcp-dev = [
+    "mcp>=1.0.0",
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+]
 
 [project.scripts]
 agentreach = "agentreach.cli:main"
+agentreach-mcp = "agentreach.mcp_server:main"
 
 [project.urls]
 Homepage = "https://github.com/tenlifejosh/agentreach"

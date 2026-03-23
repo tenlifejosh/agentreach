@@ -12,8 +12,8 @@ The Fix:
     1. Use Playwright's setInputFiles (which uses CDP's Input.setFiles) —
        this sets files at the browser protocol level, bypassing JS entirely.
     2. For stubborn React components, dispatch a native InputEvent with
-       the native HTMLInputElement setter, which forces React's fiber
-       reconciler to pick up the change.
+       the native HTMLInputElement setter AND inject real base64-encoded file
+       bytes so the browser Blob contains actual content, not placeholder text.
     3. For drag-and-drop upload zones (no visible <input>), use
        DataTransfer API simulation.
     4. For completely custom upload dialogs, intercept the file chooser
@@ -23,10 +23,15 @@ This module tries all four strategies in order.
 """
 
 import asyncio
+import base64
+import logging
 from pathlib import Path
 from typing import Optional
 
 from playwright.async_api import Page, FileChooser, Locator
+
+
+logger = logging.getLogger(__name__)
 
 
 async def upload_file(
@@ -38,6 +43,14 @@ async def upload_file(
 ) -> bool:
     """
     Upload a file, trying multiple strategies to handle React and custom uploaders.
+
+    Strategy order:
+    1. Direct setInputFiles — works for most inputs, including many React ones.
+    2. Native setter bypass with real file bytes (base64) — forces React fiber to
+       register the change when Strategy 1 doesn't trigger the change handler.
+    3. File chooser interception — clicks a trigger button and intercepts the OS
+       file dialog at the browser level.
+    4. Drag-and-drop DataTransfer simulation — for drop zone uploaders.
 
     Args:
         page: Playwright page (authenticated)
@@ -65,21 +78,47 @@ async def upload_file(
         content = await page.content()
         if file_path.name in content or await _file_registered(page, input_selector):
             return True
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Upload strategy 1 (setInputFiles) failed: %s", exc)
 
     # Strategy 2: Native setter bypass for React
-    # Forces React's synthetic event system to recognize the change
+    # Reads the actual file bytes, base64-encodes them, and injects a real Blob.
+    # This forces React's synthetic event system to recognize the change.
     try:
+        file_bytes = file_path.read_bytes()
+        file_b64 = base64.b64encode(file_bytes).decode("ascii")
+        # Determine MIME type based on extension
+        suffix = file_path.suffix.lower()
+        mime_map = {
+            ".pdf": "application/pdf",
+            ".epub": "application/epub+zip",
+            ".zip": "application/zip",
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".gif": "image/gif",
+            ".webp": "image/webp",
+            ".mp4": "video/mp4",
+            ".mp3": "audio/mpeg",
+        }
+        mime_type = mime_map.get(suffix, "application/octet-stream")
+
         result = await page.evaluate(
             """
-            ([selector, fileName, fileContent]) => {
+            ([selector, fileName, fileB64, mimeType]) => {
                 const input = document.querySelector(selector);
                 if (!input) return false;
 
-                // Create a proper File object
-                const blob = new Blob([fileContent], { type: 'application/octet-stream' });
-                const file = new File([blob], fileName, { type: 'application/octet-stream' });
+                // Decode base64 to real binary data
+                const binaryStr = atob(fileB64);
+                const bytes = new Uint8Array(binaryStr.length);
+                for (let i = 0; i < binaryStr.length; i++) {
+                    bytes[i] = binaryStr.charCodeAt(i);
+                }
+
+                // Create a proper File object with real content
+                const blob = new Blob([bytes], { type: mimeType });
+                const file = new File([blob], fileName, { type: mimeType });
                 const dt = new DataTransfer();
                 dt.items.add(file);
 
@@ -90,11 +129,16 @@ async def upload_file(
                 if (nativeSetter && nativeSetter.set) {
                     nativeSetter.set.call(input, dt.files);
                 } else {
-                    // Fallback: direct assignment
-                    Object.defineProperty(input, 'files', {
-                        value: dt.files,
-                        writable: true,
-                    });
+                    // Fallback: direct assignment (less reliable)
+                    try {
+                        Object.defineProperty(input, 'files', {
+                            value: dt.files,
+                            writable: true,
+                            configurable: true,
+                        });
+                    } catch(e) {
+                        return false;
+                    }
                 }
 
                 // Dispatch all events React listens to
@@ -103,13 +147,13 @@ async def upload_file(
                 return true;
             }
             """,
-            [input_selector, file_path.name, "placeholder"],
+            [input_selector, file_path.name, file_b64, mime_type],
         )
         if result:
             await page.wait_for_timeout(500)
             return True
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Upload strategy 2 (native setter with real bytes) failed: %s", exc)
 
     # Strategy 3: File chooser interception (works for custom upload dialogs)
     # Click the trigger and intercept the native OS file dialog
@@ -121,21 +165,35 @@ async def upload_file(
             await file_chooser.set_files(str(file_path))
             await page.wait_for_timeout(500)
             return True
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug("Upload strategy 3 (file chooser interception) failed: %s", exc)
 
     # Strategy 4: Drag-and-drop DataTransfer simulation
     # For drop zone uploaders with no visible input
     try:
         drop_zone = page.locator('[data-testid*="upload"], .upload-zone, .dropzone, [class*="drop"]').first
         if await drop_zone.count() > 0:
+            file_bytes = file_path.read_bytes()
+            file_b64 = base64.b64encode(file_bytes).decode("ascii")
             await page.evaluate(
                 """
-                ([selector, fileName]) => {
+                ([selector, fileName, fileB64]) => {
                     const zone = document.querySelector(selector);
                     if (!zone) return false;
+
+                    // Decode base64 to real binary data
+                    const binaryStr = atob(fileB64);
+                    const bytes = new Uint8Array(binaryStr.length);
+                    for (let i = 0; i < binaryStr.length; i++) {
+                        bytes[i] = binaryStr.charCodeAt(i);
+                    }
+
+                    const blob = new Blob([bytes], { type: 'application/octet-stream' });
+                    const file = new File([blob], fileName, { type: 'application/octet-stream' });
                     const dt = new DataTransfer();
-                    // Simulate a file drop event
+                    dt.items.add(file);
+
+                    // Simulate a file drop event with actual file data
                     const dropEvent = new DragEvent('drop', {
                         bubbles: true,
                         cancelable: true,
@@ -145,12 +203,17 @@ async def upload_file(
                     return true;
                 }
                 """,
-                ['[data-testid*="upload"], .upload-zone, .dropzone, [class*="drop"]', file_path.name],
+                ['[data-testid*="upload"], .upload-zone, .dropzone, [class*="drop"]', file_path.name, file_b64],
             )
             await page.wait_for_timeout(500)
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.debug("Upload strategy 4 (drag-and-drop simulation) failed: %s", exc)
 
+    logger.warning(
+        "All upload strategies failed for file: %s using selector: %s",
+        file_path,
+        input_selector,
+    )
     return False
 
 
@@ -158,7 +221,7 @@ async def _file_registered(page: Page, input_selector: str) -> bool:
     """Check if a file input has files registered."""
     try:
         count = await page.evaluate(
-            f'document.querySelector("{input_selector}")?.files?.length || 0'
+            f'document.querySelector({repr(input_selector)})?.files?.length || 0'
         )
         return count > 0
     except Exception:
@@ -178,7 +241,8 @@ async def wait_for_upload_complete(
         try:
             await page.wait_for_selector(success_indicator, timeout=timeout)
             return True
-        except Exception:
+        except Exception as exc:
+            logger.debug("Upload completion indicator not found: %s", exc)
             return False
 
     # Generic: wait for loading indicators to disappear

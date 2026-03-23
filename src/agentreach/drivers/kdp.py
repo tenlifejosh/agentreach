@@ -25,6 +25,7 @@ Authentication note (2026-03-14):
 """
 
 import asyncio
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -35,12 +36,15 @@ from ..vault.store import SessionVault
 from .base import BasePlatformDriver, UploadResult
 
 
+logger = logging.getLogger(__name__)
+
+
 @dataclass
 class KDPBookDetails:
     title: str
     subtitle: str = ""
-    author: str = "Joshua Noreen"
-    publisher: str = "Ten Life Creatives Inc"
+    author: str = ""           # Format: "First Last" — no default, caller must specify
+    publisher: str = ""
     description: str = ""  # HTML — injected into CKEditor
     keywords: list[str] = field(default_factory=list)  # up to 7
     categories: list[str] = field(default_factory=list)  # BISAC

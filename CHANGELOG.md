@@ -1,59 +1,75 @@
-# AgentReach Changelog
+# Changelog
 
-All notable changes to this project will be documented in this file.
-Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
-Versioning: [Semantic Versioning](https://semver.org/)
+All notable changes to AgentReach. Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## [0.2.1] — 2026-03-22
-
-### Fixed
-
-- **TikTok PLATFORM_META** — Added TikTok to the platform icon/label registry. Previously rendered as `🔲 Tiktok` in `doctor` and `status` output; now correctly renders as `🎵 TikTok`.
-- **README platform table** — Added TikTok, Reddit, and X/Twitter to the supported platforms table (they were supported but unlisted).
-- **README accuracy** — TikTok marked as session-only (driver not yet implemented). Version badge corrected. `pip install` instructions updated to reflect PyPI not yet published.
-- **Known Limitations section added** — Documents KDP step-up auth requirement, TikTok driver status, Twitter rate limiting, and PyPI release status.
-
----
-
-## [0.2.0] — 2026-03-20
+## [0.2.1] — 2026-03-23
 
 ### Added
-
-- **`vault/monitor.py`** — Session expiry monitor. Categorizes all sessions as healthy/warning/critical/expired/missing. Prints clear alerts with exact re-harvest commands for anything needing attention.
-
-- **`agentreach doctor`** — Full system health check command. Beautiful Rich output: sessions table, driver load status, vault path/stats, Playwright availability, and actionable recommendations.
-
-- **`agentreach status`** (upgraded) — Now renders a Rich table with platform icon, name, colored status badge, days remaining, and last harvested timestamp. Summary line at bottom.
-
-- **`agentreach backup`** — Export encrypted vault to `~/.agentreach/backups/vault-YYYY-MM-DD.enc`. Bundles all platform sessions into a single encrypted archive.
-
-- **`agentreach restore`** — Import vault sessions from a backup `.enc` file. Skips existing sessions by default; use `--overwrite` to replace.
-
-- **`agentreach platforms`** — List all supported platforms with current session status, auth method, and bootstrap command.
-
-- **Smart session pre-checks in `BasePlatformDriver`** — `require_valid_session()` method. Before any operation, checks session health. If expired or missing: prints a friendly message with the exact re-harvest command and exits cleanly. No stack traces.
-
-- All platform driver commands now call `require_valid_session()` before executing.
+- `nextdoor.py` driver — post to Nextdoor neighborhood feed via browser session
+- `agentreach nextdoor post` CLI command
+- `agentreach twitter reply` CLI command — reply to a tweet by URL
+- `agentreach reddit post` CLI command — create text posts in subreddits
+- `agentreach verify <platform>` command — live session verification via HTTP
+- `agentreach platforms` command — list all platforms with auth method and session status
+- `agentreach backup` and `agentreach restore` commands — encrypted vault export/import
+- `doctor` command — full system diagnostics: sessions, driver loading, vault path, Playwright availability
+- Session health monitoring (`vault/health.py`, `vault/monitor.py`) — TTL-based expiry estimation
+- `SessionStatus` enum: `HEALTHY`, `EXPIRING_SOON`, `EXPIRED`, `MISSING`, `UNKNOWN`
+- `check_all()` — bulk health check across all known platforms
+- Rich terminal output throughout: color-coded status tables, actionable error messages
+- `UploadResult` dataclass standardizing driver return values
+- `BasePlatformDriver.require_valid_session()` — clean exit with human-readable message on expired/missing session
+- `browser/uploader.py` — 4-strategy React upload bypass engine
 
 ### Changed
+- KDP driver: improved step-up auth detection with clear error messaging
+- Etsy driver: moved to Etsy v3 REST API for listing creation
+- Gumroad driver: added API-based sales reporting and product listing
+- Pinterest driver: added board creation with fallback logic
+- Reddit driver: clipboard paste strategy for Lexical editor (more reliable than character-by-character typing)
 
-- Version bumped from `0.1.0` → `0.2.0` in `pyproject.toml` and `__init__.py`.
-- `agentreach --version` / `-v` now supported via callback.
-
-### Dependencies
-
-- `rich>=13.0.0` (already present in v0.1.0 — no new dependency needed)
+### Known Issues
+- `browser/uploader.py` strategy 2 sends literal `"placeholder"` as file content (broken)
+- `gumroad.py` hardcodes seller URL to `tenlifejosh.gumroad.com` (wrong for other users)
+- TikTok in `PLATFORM_META` but no driver actions — `get_driver("tiktok")` raises `KeyError`
+- `playwright-stealth` not in declared dependencies — silently absent for most installs
+- Vault `_path()` doesn't sanitize against path traversal beyond space replacement
 
 ---
 
-## [0.1.0] — 2026-03-14
+## [0.2.0] — 2026-02-01
 
-### Initial Release
+### Added
+- `etsy.py` driver — Etsy API integration for listing creation and image/file upload
+- `gumroad.py` driver — Gumroad API for sales checking; browser fallback for product creation
+- `pinterest.py` driver — pin and board creation via browser session
+- `reddit.py` driver — comment and post via browser session
+- `twitter.py` driver — tweet and reply via browser session
+- `agentreach status` command — Rich table showing session health for all platforms
+- Full Typer CLI with sub-apps per platform (`agentreach kdp`, `agentreach etsy`, etc.)
+- `vault/store.py` — `SessionVault` class with AES-256 Fernet encryption
+- PBKDF2-HMAC-SHA256 key derivation with 480,000 iterations
+- Machine-specific key (MAC address seed) — vault non-portable by design
+- `agentreach harvest <platform>` — visible-browser session capture with auto URL-pattern detection
+- `agentreach --version` and `agentreach version` commands
 
-- Session vault (AES-256 encrypted, machine-specific key)
-- Browser harvester (Playwright, visible browser, human logs in once)
-- Platform drivers: KDP, Etsy, Gumroad, Pinterest, Reddit, Twitter/X
-- CLI: `harvest`, `verify`, `status`
-- KDP step-up authentication support (deep auth cookie capture)
+### Changed
+- KDP driver rewritten from scratch — handles all 3 upload steps, step-up auth detection, CKEditor description strategy
+
+---
+
+## [0.1.0] — 2026-01-10
+
+### Added
+- Initial release
+- `kdp.py` driver — Amazon KDP paperback upload via browser automation
+- `browser/harvester.py` — visible browser session harvesting
+- `browser/session.py` — headless session loading via cookie injection
+- Basic vault storage (unencrypted JSON — replaced in 0.2.0)
+- `agentreach harvest kdp` — first working CLI command
+- `agentreach kdp upload` — paperback upload to KDP
+- `agentreach kdp bookshelf` — list KDP bookshelf
+- `pyproject.toml` with Playwright, httpx, typer, rich as dependencies
+- MIT license
