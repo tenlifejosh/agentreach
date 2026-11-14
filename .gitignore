@@ -20,7 +20,7 @@ htmlcov/
 
 # Secrets & vault
 *.vault
-vault/
+/vault/
 *.salt
 *.key
 .env
